@@ -10,7 +10,7 @@ hypothesis = """Hypothesis 1: The primary objective is to push the orange/blue b
 Because the orange/blue block is the only block that can be pushed."""
 
 class CustomReasoningAgent(ReasoningAgent):
-    MODEL="gemini-2.5-flash"
+    MODEL="gemini-2.5-pro"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -21,53 +21,29 @@ class CustomReasoningAgent(ReasoningAgent):
         self.hypothesis = hypothesis
 
 
-class HypothsesisNavigatorAgent(CustomReasoningAgent):
+class HypothesisNavigatorAgent(CustomReasoningAgent):
     """ A custom agent that navigates through hypotheses in a game-like environment."""
-    def build_user_prompt(self, latest_frame):
-        return textwrap.dedent(
-            f"""
-You are playing a video game.
+#     def build_user_prompt(self, latest_frame):
+#         return textwrap.dedent(
+#             f"""You are an agent in a 2D grid-based video game.
 
-Your ultimate goal is to achieve the below hypothesis by taking actions based on the game grid image.
+# Your goal is to achieve the following hypothesis state:
 
-<hypothesis>
-{self.hypothesis}
-</hypothesis>
+# **"The primary objective is to push the orange blue block into the black goal square."**
 
-The game is complex, and may look like an IQ test.
+# Mechanics:
+# Orange and blue block is pushable
 
-You need to determine how the game works on your own.
+# You can take one of the following actions at each step:
+# - RESET
+# - ACTION1 (MOVE_UP)
+# - ACTION2 (MOVE_DOWN)
+# - ACTION3 (MOVE_LEFT)
+# - ACTION4 (MOVE_RIGHT)
 
-To do so, we will provide you with a view of the game corresponding to the bird-eye view of the game, along with the raw grid data.
+# Use the actions to interact with the environment and reach the hypothesis state.  
+# If you determine that the hypothesis state cannot be achieved in the current configuration, choose **RESET**.
 
-You can do 5 actions:
-- RESET (used to start a new game or level)
-- ACTION1 (MOVE_UP)
-- ACTION2 (MOVE_DOWN)
-- ACTION3 (MOVE_LEFT)
-- ACTION4 (MOVE_RIGHT)
-
-You can do one action at once.
-
-Every time an action is performed we will provide you with the previous screen and the current screen.
-
-Determine the game rules based on how the game reacted to the previous action (based on the previous screen and the current screen).
-
-Your goal:
-
-1. Experiment the game to determine how it works based on the screens and your actions.
-2. Analyse the impact of your actions by comparing the screens.
-
-How to proceed:
-1. Define an hypothesis and an action to validate it.
-2. Once confirmed, store the findings. Summarize and aggregate them so that your colleagues can understand the game based on your learning.
-3. Make sure to understand clearly the game rules, energy, walls, doors, keys, etc.
-
-Hint:
-- The game is a 2D platformer.
-- The player can move up, down, left and right.
-- The player has a blue body and a yellow head.
-- There are walls in black.
-- The door has a pink border and a shape inside.
-        """
-        )
+# You are provided with the current and previous game screens and raw grid data after each action to guide your decision-making.
+# """
+#         )

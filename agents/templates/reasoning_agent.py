@@ -19,7 +19,7 @@ class HypothesisState(str, Enum):
     """Enum for hypothesis states in the reasoning agent."""
     INITIAL = "initial"
     IN_PROGRESS = "in_progress"
-    CONFIRMED = "confirmed"
+    ACHIEVED = "achieved"
     REJECTED = "rejected"
 
 class ReasoningActionResponse(BaseModel):
@@ -317,7 +317,7 @@ Hint:
             )
 
         raw_grid_text = self.pretty_print_3d(latest_frame.frame)
-        user_message_text = f"Your previous action was: {json.dumps(latest_action.model_dump() if latest_action else None, indent=2)}\n\nAttached are the visual screen and raw grid data.\n\nRaw Grid:\n{raw_grid_text}\n\nWhat should you do next?"
+        user_message_text = f"Your previous action was: {json.dumps(latest_action.model_dump() if latest_action else None, indent=2)}\n\nWhat should you do next?"
 
         current_image_b64 = base64.b64encode(map_image).decode()
         user_message_content.extend(
