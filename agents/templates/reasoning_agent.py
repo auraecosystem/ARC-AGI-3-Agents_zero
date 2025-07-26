@@ -14,6 +14,13 @@ from .llm_agents import ReasoningLLM
 
 logger = logging.getLogger(__name__)
 
+from enum import Enum
+class HypothesisState(str, Enum):
+    """Enum for hypothesis states in the reasoning agent."""
+    INITIAL = "initial"
+    IN_PROGRESS = "in_progress"
+    CONFIRMED = "confirmed"
+    REJECTED = "rejected"
 
 class ReasoningActionResponse(BaseModel):
     """Action response structure for reasoning agent."""
@@ -29,10 +36,8 @@ class ReasoningActionResponse(BaseModel):
     short_description: str = Field(
         description="Brief description of the action", min_length=5, max_length=500
     )
-    hypothesis: str = Field(
-        description="Current hypothesis about game mechanics",
-        min_length=10,
-        max_length=2000,
+    hypothesis_state: HypothesisState = Field(
+        description="hypothesis state about the hypothesis objective",
     )
     aggregated_findings: str = Field(
         description="Summary of discoveries and learnings so far",
@@ -154,6 +159,9 @@ class ReasoningAgent(ReasoningLLM):
         # Convert to bytes
         buffer = io.BytesIO()
         img.save(buffer, format="PNG")
+        # save as current_grid.png
+        img.save("current_grid.png", format="PNG")
+        buffer.seek(0)  # Reset buffer position
         return buffer.getvalue()
 
     def build_functions(self) -> list[dict[str, Any]]:
@@ -355,7 +363,7 @@ Hint:
                 name="RESET",
                 reason="Initial action to start the game and observe the environment.",
                 short_description="Start game",
-                hypothesis="The game requires a RESET to begin.",
+                hypothesis_state=HypothesisState.INITIAL,
                 aggregated_findings="No findings yet.",
             )
             self.history.append(initial_response)
@@ -375,7 +383,7 @@ Hint:
             "reasoning_tokens": self._last_reasoning_tokens,
             "total_reasoning_tokens": self._total_reasoning_tokens,
             "agent_type": "reasoning_agent",
-            "hypothesis": action_response.hypothesis,
+            "hypothesi_state": action_response.hypothesis_state.value,
             "aggregated_findings": action_response.aggregated_findings,
             "response_preview": action_response.reason[:200] + "..."
             if len(action_response.reason) > 200
