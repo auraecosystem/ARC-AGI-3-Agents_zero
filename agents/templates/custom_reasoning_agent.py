@@ -577,7 +577,7 @@ class CustomReasoningAgent(ReasoningAgent):
         )
         video_bytes = open(video_file_path, 'rb').read()
 
-        random_explorer_agent_response = client.models.generate_content(
+        random_explorer_agent_response = self.client.models.generate_content(
             model=self.RANDOM_ANALYSIS_MODEL,
             contents=types.Content(
                 parts=[
@@ -630,7 +630,7 @@ class CustomReasoningAgent(ReasoningAgent):
 
     def retrieve_top_hypothesis(self, all_random_hypothesis_text: str) -> str:
         """Retrieve the top hypothesis from the random analysis response."""
-        response = client.models.generate_content(
+        response = self.client.models.generate_content(
             model='gemini-2.5-pro',
             contents=types.Content(
                 parts=[
