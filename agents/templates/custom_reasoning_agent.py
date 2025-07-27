@@ -55,7 +55,7 @@ Hints:
 -----
 
 <previous_actions>
-The previous action "{previous_action}" had some effect in the game.
+The previous action "{previous_action_text}" had {game_effect_flag} effect in the game.
 
 Previous reason: {previous_action_reason}
 
@@ -81,7 +81,7 @@ current_goal = "You need to move the \"Orange-Capped Blue Block (6x7)\" to the t
 hints = """- The Orange-Capped Blue Block (6x7) is the only movable object until now.
 - Click action has no visible effect until now
 """
-previous_action = "A"
+previous_action_text = "A"
 previous_action_reason = "The Orange-Capped Blue Block is currently to the right of its target, the '8x7Grid_BlackHead_BlueEye_WhiteSnout'. Continuing to move left ('A') will bring it closer horizontally to the desired position within the larger grey shape."
 
 
@@ -100,13 +100,14 @@ class CustomReasoningAgent(ReasoningAgent):
         )
         self.current_goal = ""
         self.hints = ""
-        self.previous_action = ""
-        self.previous_action_reason = ""
+        self.previous_action_text = "RESET"
+        self.previous_action_reason = "Game has been reset."
 
         self.current_goal = current_goal
         self.hints = hints
-        self.previous_action = previous_action
+        self.previous_action_text = previous_action_text
         self.previous_action_reason = previous_action_reason
+
 
         # Trial/Real run support
         self.trial_runs: List[List[FrameData]] = []
@@ -146,6 +147,8 @@ class CustomReasoningAgent(ReasoningAgent):
         reasoning = action.reasoning or {}
         reasoning["goal_achievement_check_output"] = goal_achievement_check_output
         reasoning["is_goal_achieved"] = is_goal_achieved_flag
+        self.previous_action_text = self.convert_game_action_to_text(action)
+        self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
 
         return action
 
@@ -160,6 +163,12 @@ class CustomReasoningAgent(ReasoningAgent):
             self.current_trial_run.append(latest_frame)
         else:
             self.current_real_run.append(latest_frame)
+
+    def get_current_run(self) -> List[FrameData]:
+        if self.trial_mode:
+            return self.current_trial_run
+        else:
+            return self.current_real_run
 
     def save_and_reset_current_run(self) -> None:
         if self.trial_mode and self.current_trial_run:
@@ -233,16 +242,39 @@ class CustomReasoningAgent(ReasoningAgent):
 
         return response_flag, response.choices[0].message.content
 
+    def is_frames_equal(
+        self, previous_frame: FrameData, current_frame: FrameData
+    ) -> bool:
+        """Check if two frames are equal."""
+        if not previous_frame.frame or not current_frame.frame:
+            return False
+        previous_grid = previous_frame.frame[0]
+        current_grid = current_frame.frame[0]
+        if len(previous_grid) != len(current_grid):
+            return False
+        for row_prev, row_curr in zip(previous_grid, current_grid):
+            if row_prev != row_curr:
+                return False
+        return True
+
     def generate_next_action(
         self,
         latest_frame: FrameData,
     ) -> GameAction:
         """Generate the next action based on the current goal and previous action."""
+        current_run = self.get_current_run()
+        previous_frame = current_run[-2] if len(current_run) > 1 else latest_frame
+
+        if self.is_frames_equal(previous_frame, latest_frame):
+            game_effect_flag = "no"
+        else:
+            game_effect_flag = "some"
         prompt = NEXT_ACTION_GENERATOR_PROMPT.format(
             current_goal=self.current_goal,
             hints=textwrap.fill(hints, width=80),
-            previous_action=previous_action,
-            previous_action_reason=previous_action_reason,
+            previous_action_text=self.previous_action_text,
+            previous_action_reason=self.previous_action_reason,
+            game_effect_flag=game_effect_flag,
         )
         latest_grid = latest_frame.frame[0] if latest_frame.frame else []
         latest_map_image = self.generate_grid_image_with_zone(latest_grid)
@@ -425,3 +457,27 @@ class CustomReasoningAgent(ReasoningAgent):
             "reason": reason if reason else "No specific reason provided"
         }
         return action
+
+    def convert_game_action_to_text(
+        self, action: GameAction
+    ) -> str:
+        """Convert GameAction to text representation."""
+        if action == GameAction.ACTION1:
+            return "W"
+        elif action == GameAction.ACTION2:
+            return "A"
+        elif action == GameAction.ACTION3:
+            return "S"
+        elif action == GameAction.ACTION4:
+            return "D"
+        elif action == GameAction.ACTION5:
+            return "SPACE"
+        elif action == GameAction.RESET:
+            return "RESET"
+        elif action == GameAction.ACTION6:
+            data = action.get_data()
+            if data and "x" in data and "y" in data:
+                return f"CLICK({data['x']},{data['y']})"
+        else:
+            logger.warning(f"Unknown GameAction: {action}")
+            return "UNKNOWN"
