@@ -9,6 +9,7 @@ from typing import List
 
 import cv2
 import numpy as np
+from google import genai
 from google.genai import types
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
@@ -134,6 +135,7 @@ class CustomReasoningAgent(ReasoningAgent):
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-pro"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-pro"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
+    TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
     RANDOM_ACTION_MAX_LIMIT = 30
 
     def __init__(self, *args, **kwargs):
@@ -142,6 +144,7 @@ class CustomReasoningAgent(ReasoningAgent):
             api_key=os.getenv("GEMINI_API_KEY"),
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
         )
+        self.gemini_client = genai.Client()
         self.current_goal = ""
         self.hints = ""
         self.previous_action_text = "RESET"
@@ -574,10 +577,11 @@ class CustomReasoningAgent(ReasoningAgent):
         self.generate_video_from_scorecard = self.generate_video_from_grids(
             frames=frames,
             video_output_path=video_file_path,
+            fps=1,
         )
         video_bytes = open(video_file_path, 'rb').read()
 
-        random_explorer_agent_response = self.client.models.generate_content(
+        random_explorer_agent_response = self.gemini_client.models.generate_content(
             model=self.RANDOM_ANALYSIS_MODEL,
             contents=types.Content(
                 parts=[
@@ -587,6 +591,10 @@ class CustomReasoningAgent(ReasoningAgent):
                     types.Part(text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT)
                 ]
             )
+        )
+        
+        self.track_tokens(
+            random_explorer_agent_response.usage_metadata.total_token_count, random_explorer_agent_response.text
         )
         all_random_hypothesis_text = random_explorer_agent_response.text.strip()
         logger.info(f"Random analysis completed: {all_random_hypothesis_text}")
@@ -630,16 +638,27 @@ class CustomReasoningAgent(ReasoningAgent):
 
     def retrieve_top_hypothesis(self, all_random_hypothesis_text: str) -> str:
         """Retrieve the top hypothesis from the random analysis response."""
-        response = self.client.models.generate_content(
-            model='gemini-2.5-pro',
-            contents=types.Content(
-                parts=[
-                    types.Part(text=TOP_HYPOTHESIS_RETRIEVER_PROMPT.format(
-                        all_random_hypothesis_text=all_random_hypothesis_text
-                    ))
-                ]
-            )
+        prompt = TOP_HYPOTHESIS_RETRIEVER_PROMPT.format(
+            all_random_hypothesis_text=all_random_hypothesis_text
         )
-        top_hypothesis = response.text
+        messages = [
+            {
+                "role": "user",
+                "content": prompt,
+            }
+        ]
+
+        response = self.client.chat.completions.create(
+            model=self.TOP_HYPOTHESIS_GENERATOR_MODEL,
+            messages=messages,
+            # reasoning_effort="low",
+        )
+        
+        self.track_tokens(
+            response.usage.total_tokens, response.choices[0].message.content
+        )
+        self.capture_reasoning_from_response(response)
+
+        top_hypothesis = response.choices[0].message.content
         logger.info(f"Top hypothesis retrieved: {top_hypothesis}")
         return top_hypothesis
