@@ -1,22 +1,19 @@
 import base64
-import sys
-import textwrap
-from typing import List
-from agents.structs import FrameData
-from agents.templates.reasoning_agent import ReasoningAgent
-from openai import OpenAI
-import os
-import base64
 import io
 import json
 import logging
+import os
+import sys
 import textwrap
-from typing import Any, Dict, List, Literal
-from agents.structs import FrameData, GameAction, GameState
+from typing import List
+
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
-from pydantic import BaseModel, Field
-# logging.basicConfig(level=logging.INFO, stream=sys.stdout)
+
+from agents.structs import FrameData, GameAction, GameState
+from agents.templates.reasoning_agent import ReasoningAgent
+
+logger = logging.getLogger(__name__)
 
 GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (before and after), determine whether the goal has been achieved.
 
@@ -85,7 +82,6 @@ previous_action_text = "A"
 previous_action_reason = "The Orange-Capped Blue Block is currently to the right of its target, the '8x7Grid_BlackHead_BlueEye_WhiteSnout'. Continuing to move left ('A') will bring it closer horizontally to the desired position within the larger grey shape."
 
 
-logger = logging.getLogger(__name__)
 
 class CustomReasoningAgent(ReasoningAgent):
     MODEL = "gemini-2.5-pro"
@@ -105,9 +101,6 @@ class CustomReasoningAgent(ReasoningAgent):
 
         self.current_goal = current_goal
         self.hints = hints
-        self.previous_action_text = previous_action_text
-        self.previous_action_reason = previous_action_reason
-
 
         # Trial/Real run support
         self.trial_runs: List[List[FrameData]] = []
@@ -428,9 +421,9 @@ class CustomReasoningAgent(ReasoningAgent):
         action_text = action_text.strip().upper()
         if action_text == "W":
             action = GameAction.ACTION1
-        elif action_text == "A":
-            action = GameAction.ACTION2
         elif action_text == "S":
+            action = GameAction.ACTION2
+        elif action_text == "A":
             action = GameAction.ACTION3
         elif action_text == "D":
             action = GameAction.ACTION4
@@ -465,9 +458,9 @@ class CustomReasoningAgent(ReasoningAgent):
         if action == GameAction.ACTION1:
             return "W"
         elif action == GameAction.ACTION2:
-            return "A"
-        elif action == GameAction.ACTION3:
             return "S"
+        elif action == GameAction.ACTION3:
+            return "A"
         elif action == GameAction.ACTION4:
             return "D"
         elif action == GameAction.ACTION5:
