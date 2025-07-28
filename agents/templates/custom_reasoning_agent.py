@@ -6,6 +6,8 @@ import os
 import random
 import textwrap
 from typing import List
+import os
+from itertools import cycle
 
 import cv2
 import numpy as np
@@ -15,7 +17,7 @@ from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
 
 from agents.structs import FrameData, GameAction, GameState
-from agents.templates.reasoning_agent import ReasoningAgent
+from agents.templates.reasoning_agent import ReasoningLLM
 
 logger = logging.getLogger(__name__)
 
@@ -130,7 +132,7 @@ previous_action_reason = "The Orange-Capped Blue Block is currently to the right
 
 
 
-class CustomReasoningAgent(ReasoningAgent):
+class CustomReasoningAgent(ReasoningLLM):
     MODEL = "gemini-2.5-pro"
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-pro"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-pro"
@@ -140,11 +142,32 @@ class CustomReasoningAgent(ReasoningAgent):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.client = OpenAI(
-            api_key=os.getenv("GEMINI_API_KEY"),
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
-        self.gemini_client = genai.Client()
+        # Collect all available shared API keys
+        api_keys = list(filter(None, [
+            os.getenv("GEMINI_API_KEY"),
+            os.getenv("GEMINI_API_KEY_1"),
+            os.getenv("GEMINI_API_KEY_2"),
+        ]))
+
+        if not api_keys:
+            raise ValueError("No valid GEMINI_API_KEYs found in environment variables.")
+
+        # Initialize OpenAI clients
+        self._openai_clients = [
+            OpenAI(api_key=key, base_url="https://generativelanguage.googleapis.com/v1beta/openai/")
+            for key in api_keys
+        ]
+
+        # Initialize Gemini clients
+        self._gemini_clients = [
+            genai.Client(api_key=key)
+            for key in api_keys
+        ]
+
+        # Create round-robin iterators
+        self._openai_cycle = cycle(self._openai_clients)
+        self._gemini_cycle = cycle(self._gemini_clients)
+
         self.current_goal = ""
         self.hints = ""
         self.previous_action_text = "RESET"
@@ -163,6 +186,16 @@ class CustomReasoningAgent(ReasoningAgent):
         self.trial_mode: bool = True
         self._last_trial_mode: bool = self.trial_mode
         self._random_action_count: int = 0
+
+    @property
+    def client(self):
+        """Next OpenAI client (round-robin)."""
+        return next(self._openai_cycle)
+
+    @property
+    def gemini_client(self):
+        """Next Gemini client (round-robin)."""
+        return next(self._gemini_cycle)
 
     @property
     def name(self) -> str:
@@ -625,8 +658,13 @@ class CustomReasoningAgent(ReasoningAgent):
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         video = cv2.VideoWriter(video_output_path, fourcc, fps, frame_size)
 
-        # === Frame processing loop ===
-        for frame in frames[:-1]:  # Exclude last if needed
+        # === Frame processing loop with deduplication ===
+        prev_frame_data = None
+        for frame in frames:
+            if frame.frame == prev_frame_data:
+                continue  # Skip duplicate frame
+            prev_frame_data = frame.frame
+
             for grid in frame.frame:
                 grid_array = np.array(grid, dtype=np.uint8)
                 color_image = palette[grid_array]  # shape: (H, W, 3)
