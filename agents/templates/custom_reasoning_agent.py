@@ -354,9 +354,9 @@ class CustomReasoningAgent(ReasoningLLM):
             logger.info(
                 f"Switching from trial mode to real mode. Trial runs: {len(self.trial_runs)}, Real runs: {len(self.real_runs)}"
             )
-            # all_random_hypothesis_text = self.do_random_hypothesis_analysis(self.trial_runs[-1])
-            # self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
-            logger.info("Skipping random hypothesis analysis for testing.")
+            all_random_hypothesis_text = self.do_random_hypothesis_analysis(self.trial_runs[-1])
+            self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
+            # logger.info("Skipping random hypothesis analysis for testing.")
             self._random_action_count = 0
 
         self._last_trial_mode = self.trial_mode
