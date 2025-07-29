@@ -131,14 +131,16 @@ previous_action_text = "A"
 previous_action_reason = "The Orange-Capped Blue Block is currently to the right of its target, the '8x7Grid_BlackHead_BlueEye_WhiteSnout'. Continuing to move left ('A') will bring it closer horizontally to the desired position within the larger grey shape."
 
 
-
 class CustomReasoningAgent(ReasoningLLM):
     MODEL = "gemini-2.5-pro"
+    MAX_ACTIONS = 500
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-pro"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-pro"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 29
+    RANDOM_ACTION_MAX_LIMIT = 300
+    RANDOM_ANALYSIS_FPS = 10
+    RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = False
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -179,6 +181,7 @@ class CustomReasoningAgent(ReasoningLLM):
         # Trial/Real run support
         self.trial_runs: List[List[FrameData]] = []
         self.real_runs: List[List[FrameData]] = []
+        self.win_runs: List[List[FrameData]] = []
 
         self.current_trial_run: List[FrameData] = []
         self.current_real_run: List[FrameData] = []
@@ -224,6 +227,26 @@ class CustomReasoningAgent(ReasoningLLM):
             "reason": "Randomly chosen action"
         }
         return action
+    def check_game_win(self, frames: List[FrameData], latest_frame: FrameData) -> bool:
+        """Check if the game is won based on the latest frame and previous frames."""
+        if len(frames) > 1 and frames[-2].score != latest_frame.score:
+            return True
+        return False
+
+    def generate_hints_from_win_run(self) -> None:
+        """Generate hints from the lst win run"""
+        logger.info("Generating hints from win run...")
+        if not self.win_runs:
+            logger.warning("No win runs available to generate hints.")
+            return
+        last_win_run = self.win_runs[-1]
+        if not last_win_run:
+            logger.warning("Last win run is empty, cannot generate hints.")
+            return
+        # Generate hints based on the last win run
+        # This is a placeholder for actual hint generation logic
+
+        pass
 
     def choose_action(
         self, frames: List[FrameData], latest_frame: FrameData
@@ -231,14 +254,25 @@ class CustomReasoningAgent(ReasoningLLM):
         if latest_frame.state in [GameState.NOT_PLAYED]:
             return GameAction.RESET
 
+        self.append_to_current_run(latest_frame)
+
+        if self.check_game_win(frames, latest_frame):
+            current_run = self.get_current_run()
+            self.win_runs.append(current_run[:])
+            self.save_and_reset_current_run()
+            # TODO: Do win analysis and provide hints and also track all hints
+            self.generate_hints_from_win_run()
+            self.trial_mode = True
+            # TODO: Need to handle if the game is won in trial mode
+            logger.info(f"Game won! Resetting to trial mode. Current run: {len(current_run)} frames.")
+            return GameAction.RESET
     
         if self.trial_mode != self._last_trial_mode:
             return self.handle_mode_switch(latest_frame)
-        self.append_to_current_run(latest_frame)
 
         if self.trial_mode:
             # if random action(check previous frame and current frame) has no effect, don't increase the count
-            if len(frames) > 1 and self.is_frames_equal(frames[-2], latest_frame):
+            if self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG and len(frames) > 1 and self.is_frames_equal(frames[-2], latest_frame):
                 logger.info("No game effect detected, reducing random action count.")
                 self._random_action_count -= 1
             if self._random_action_count < self.RANDOM_ACTION_MAX_LIMIT:
@@ -615,7 +649,8 @@ class CustomReasoningAgent(ReasoningLLM):
         self.generate_video_from_scorecard = self.generate_video_from_grids(
             frames=frames,
             video_output_path=video_file_path,
-            fps=1,
+            fps=self.RANDOM_ANALYSIS_FPS,
+            skip_repeated_frames=self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG,
         )
         video_bytes = open(video_file_path, 'rb').read()
 
@@ -639,7 +674,14 @@ class CustomReasoningAgent(ReasoningLLM):
         return all_random_hypothesis_text
 
 
-    def generate_video_from_grids(self, frames: list[FrameData], video_output_path="output_video.mp4", pixel_size=10, fps=10):
+    def generate_video_from_grids(
+        self,
+        frames: list[FrameData],
+        video_output_path="output_video.mp4",
+        pixel_size=10,
+        fps=10,
+        skip_repeated_frames=False,
+    ) -> None:
         # === Color palette (from key_colors as hex) ===
         key_colors = {
             0: "#FFFFFF", 1: "#CCCCCC", 2: "#999999", 3: "#666666",
@@ -666,7 +708,7 @@ class CustomReasoningAgent(ReasoningLLM):
         # === Frame processing loop with deduplication ===
         prev_frame = None
         for frame in frames:
-            if self.is_frames_equal(prev_frame, frame):
+            if skip_repeated_frames and self.is_frames_equal(prev_frame, frame):
                 logger.debug("Skipping duplicate frame")
                 continue  # Skip duplicate frame
             prev_frame = frame
