@@ -321,12 +321,12 @@ class CustomReasoningAgent(ReasoningLLM):
                 self._random_action_count -= 1
             if self._random_action_count < self.RANDOM_ACTION_MAX_LIMIT:
                 self._random_action_count += 1
-                action = self.choose_random_action(frames, latest_frame)
             if self._random_action_count >= self.RANDOM_ACTION_MAX_LIMIT:
                 logger.info(
                     f"Random action limit reached: {self._random_action_count}. Switching to goal-based reasoning."
                 )
                 self.trial_mode = False
+            action = self.choose_random_action(frames, latest_frame)
             return action
 
 
@@ -334,6 +334,7 @@ class CustomReasoningAgent(ReasoningLLM):
             previous_frame=frames[-2] if len(frames) > 1 else latest_frame,
             current_frame=latest_frame,
         )
+        # TODO: if goal is achieved, save the run and run random hypothesis analysis, generate hints
         # Invoke the custom decision logic
         action = self.generate_next_action(latest_frame)
         reasoning = action.reasoning or {}
@@ -353,8 +354,10 @@ class CustomReasoningAgent(ReasoningLLM):
             logger.info(
                 f"Switching from trial mode to real mode. Trial runs: {len(self.trial_runs)}, Real runs: {len(self.real_runs)}"
             )
-            all_random_hypothesis_text = self.do_random_hypothesis_analysis(self.trial_runs[-1])
-            self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
+            # all_random_hypothesis_text = self.do_random_hypothesis_analysis(self.trial_runs[-1])
+            # self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
+            logger.info("Skipping random hypothesis analysis for testing.")
+            self._random_action_count = 0
 
         self._last_trial_mode = self.trial_mode
         self._pending_reset = True  # Defer RESET to next frame
@@ -362,13 +365,13 @@ class CustomReasoningAgent(ReasoningLLM):
 
 
     def append_to_current_run(self, latest_frame: FrameData) -> None:
-        if self.trial_mode:
+        if self._last_trial_mode:
             self.current_trial_run.append(latest_frame)
         else:
             self.current_real_run.append(latest_frame)
 
     def get_current_run(self) -> List[FrameData]:
-        if self.trial_mode:
+        if self._last_trial_mode:
             return self.current_trial_run
         else:
             return self.current_real_run
