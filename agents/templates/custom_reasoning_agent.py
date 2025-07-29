@@ -256,6 +256,12 @@ class CustomReasoningAgent(ReasoningLLM):
 
         self.append_to_current_run(latest_frame)
 
+        # BUG: If the game is won in trail mode, it is generating two hints
+        # If reset is clicked, game is full reset, goes to score 0
+        # there can be many frames inside single framedata
+        # for example, if the game is won, it can have multiple frames with same score
+        # Alos, game is reseting is done(goes to score 0) if first move is RESET move is done if in new level
+        # if first move is some other, two times reset is clicked, it will reset the game(goes to score 0)
         if self.check_game_win(frames, latest_frame):
             current_run = self.get_current_run()
             self.win_runs.append(current_run[:])
