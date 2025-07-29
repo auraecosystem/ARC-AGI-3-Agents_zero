@@ -262,6 +262,7 @@ class CustomReasoningAgent(ReasoningLLM):
         # for example, if the game is won, it can have multiple frames with same score
         # Alos, game is reseting is done(goes to score 0) if first move is RESET move is done if in new level
         # if first move is some other, two times reset is clicked, it will reset the game(goes to score 0)
+        # TODO: if game goes to 0, need to replay all the win runs, we should not make this one
         if self.check_game_win(frames, latest_frame):
             current_run = self.get_current_run()
             self.win_runs.append(current_run[:])
