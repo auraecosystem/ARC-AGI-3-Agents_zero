@@ -189,6 +189,9 @@ class CustomReasoningAgent(ReasoningLLM):
         self.trial_mode: bool = True
         self._last_trial_mode: bool = self.trial_mode
         self._random_action_count: int = 0
+        self._pending_reset = False
+        self._is_replaying_win_run = False
+        self._replay_action_queue: List[GameAction] = []
 
     @property
     def client(self):
@@ -210,8 +213,6 @@ class CustomReasoningAgent(ReasoningLLM):
     def choose_random_action(
         self, frames: list[FrameData], latest_frame: FrameData
     ) -> GameAction:
-        if latest_frame.state in [GameState.NOT_PLAYED, GameState.GAME_OVER]:
-            return GameAction.RESET
 
         action = random.choice([a for a in GameAction if a is not GameAction.RESET])
 
@@ -227,6 +228,20 @@ class CustomReasoningAgent(ReasoningLLM):
             "reason": "Randomly chosen action"
         }
         return action
+
+    def extract_actions_from_win_runs(self) -> List[GameAction]:
+        # You need to implement how to extract original actions from each frame
+        # If frames store action metadata, you can use that
+        replay_actions = []
+        for run in self.win_runs:
+            for frame in run:
+                if hasattr(frame, "action_taken") and isinstance(frame.action_taken, GameAction):
+                    replay_actions.append(frame.action_taken)
+                else:
+                    logger.warning("Missing action_taken in frame. Skipping.")
+        return replay_actions
+
+
     def check_game_win(self, frames: List[FrameData], latest_frame: FrameData) -> bool:
         """Check if the game is won based on the latest frame and previous frames."""
         if len(frames) > 1 and frames[-2].score != latest_frame.score:
@@ -248,13 +263,23 @@ class CustomReasoningAgent(ReasoningLLM):
 
         pass
 
-    def choose_action(
-        self, frames: List[FrameData], latest_frame: FrameData
-    ) -> GameAction:
+    def choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
+        self.append_to_current_run(latest_frame)
+
+        if self._pending_reset:
+            self._pending_reset = False
+            logger.info("Pending RESET triggered.")
+            return GameAction.RESET
+        # Detect unexpected reset
+        if not self._is_replaying_win_run and len(frames) > 1 and frames[-2].score > 0 and latest_frame.score == 0:
+            logger.warning("Unexpected reset detected. Initiating win run replay.")
+            self._is_replaying_win_run = True
+            self._replay_action_queue = self.extract_actions_from_win_runs()
+
+
         if latest_frame.state in [GameState.NOT_PLAYED]:
             return GameAction.RESET
 
-        self.append_to_current_run(latest_frame)
 
         # BUG: If the game is won in trail mode, it is generating two hints
         # If reset is clicked, game is full reset, goes to score 0
@@ -267,13 +292,25 @@ class CustomReasoningAgent(ReasoningLLM):
             current_run = self.get_current_run()
             self.win_runs.append(current_run[:])
             self.save_and_reset_current_run()
-            # TODO: Do win analysis and provide hints and also track all hints
             self.generate_hints_from_win_run()
             self.trial_mode = True
-            # TODO: Need to handle if the game is won in trial mode
-            logger.info(f"Game won! Resetting to trial mode. Current run: {len(current_run)} frames.")
-            return GameAction.RESET
-    
+            self._pending_reset = True  # Defer RESET
+            logger.info(f"Game won! Deferring RESET. Trial mode ON. Current run: {len(current_run)} frames.")
+            return self.choose_random_action(frames, latest_frame)  # Return a non-RESET action first
+        # Replay mode: play saved win run actions
+        if self._is_replaying_win_run:
+            if self._replay_action_queue:
+                next_action = self._replay_action_queue.pop(0)
+                next_action.reasoning = {
+                    "reason": "Replaying action from previous win run due to unexpected reset"
+                }
+                logger.info(f"Replaying action: {next_action}")
+                return next_action
+            else:
+                logger.info("Finished replaying win run. Resuming normal operation.")
+                self._is_replaying_win_run = False
+
+
         if self.trial_mode != self._last_trial_mode:
             return self.handle_mode_switch(latest_frame)
 
@@ -311,15 +348,18 @@ class CustomReasoningAgent(ReasoningLLM):
         self.append_to_current_run(latest_frame)
         self.save_and_reset_current_run()
         logger.info(f"_last_trial_mode: {self._last_trial_mode}, trial_mode: {self.trial_mode}")
+
         if self._last_trial_mode and not self.trial_mode:
             logger.info(
                 f"Switching from trial mode to real mode. Trial runs: {len(self.trial_runs)}, Real runs: {len(self.real_runs)}"
             )
             all_random_hypothesis_text = self.do_random_hypothesis_analysis(self.trial_runs[-1])
             self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
-            
+
         self._last_trial_mode = self.trial_mode
-        return GameAction.RESET
+        self._pending_reset = True  # Defer RESET to next frame
+        return self.choose_random_action([], latest_frame)  # Return any non-RESET action for now
+
 
     def append_to_current_run(self, latest_frame: FrameData) -> None:
         if self.trial_mode:
