@@ -135,15 +135,15 @@ GEMINI_RETRY_ATTEMPTS = 5
 
 
 class CustomReasoningAgent(ReasoningLLM):
-    MODEL = "gemini-2.5-pro"
+    MODEL = "gemini-2.5-flash"
     MAX_ACTIONS = 500
-    NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-pro"
-    GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-pro"
-    RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
+    NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
+    GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
+    RANDOM_ANALYSIS_MODEL = "gemini-2.5-flash"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 100
-    RANDOM_ANALYSIS_FPS = 4
-    RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
+    RANDOM_ACTION_MAX_LIMIT = 90
+    RANDOM_ANALYSIS_FPS = 3
+    RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = False
 
     # in random choice, trigger one action based on probablity effect on game board in inerval of 20 moves,
     # use equal probability initially
@@ -291,8 +291,6 @@ class CustomReasoningAgent(ReasoningLLM):
         action.reasoning = action.reasoning or {}
         action.reasoning["current_goal"] = self.current_goal
         action.reasoning["hints"] = self.hints
-        action.reasoning["previous_action_text"] = self.previous_action_text
-        action.reasoning["previous_action_reason"] = self.previous_action_reason
         action.reasoning["trial_mode"] = self.trial_mode
         action.reasoning["last_trial_mode"] = self._last_trial_mode
         action.reasoning["random_action_count"] = self._random_action_count
@@ -394,6 +392,8 @@ class CustomReasoningAgent(ReasoningLLM):
         reasoning = action.reasoning or {}
         reasoning["goal_achievement_check_output"] = goal_achievement_check_output
         reasoning["is_goal_achieved"] = is_goal_achieved_flag
+        reasoning["previous_action_text"] = self.previous_action_text
+        reasoning["previous_action_reason"] = self.previous_action_reason
         self.previous_action_text = self.convert_game_action_to_text(action)
         self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
 
