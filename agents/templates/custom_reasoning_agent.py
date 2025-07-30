@@ -142,7 +142,7 @@ class CustomReasoningAgent(ReasoningLLM):
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
     RANDOM_ACTION_MAX_LIMIT = 100
-    RANDOM_ANALYSIS_FPS = 10
+    RANDOM_ANALYSIS_FPS = 4
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = False
 
     def __init__(self, *args, **kwargs):
@@ -174,12 +174,12 @@ class CustomReasoningAgent(ReasoningLLM):
         self._gemini_cycle = cycle(self._gemini_clients)
 
         self.current_goal = ""
-        self.hints = ""
+        self.hints = "No hints available yet."
         self.previous_action_text = "RESET"
         self.previous_action_reason = "Game has been reset."
 
         # self.current_goal = current_goal
-        self.hints = hints
+        # self.hints = hints
 
         # Trial/Real run support
         self.trial_runs: List[List[FrameData]] = []
@@ -302,6 +302,14 @@ class CustomReasoningAgent(ReasoningLLM):
         return action
 
     def _choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
+        if latest_frame.state in [GameState.NOT_PLAYED]:
+            action = GameAction.RESET
+            action.reasoning = {
+                "desired_action": f"{action.value}",
+                "reason": "Game has not been played yet, resetting."
+            }
+            return action
+
         self.append_to_current_run(latest_frame)
 
         if self._pending_reset:
@@ -320,8 +328,6 @@ class CustomReasoningAgent(ReasoningLLM):
             self._replay_action_queue = self.extract_actions_from_win_runs()
 
 
-        if latest_frame.state in [GameState.NOT_PLAYED]:
-            return GameAction.RESET
 
 
         # BUG: If the game is won in trail mode, it is generating two hints
