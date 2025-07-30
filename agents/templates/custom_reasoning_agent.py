@@ -13,6 +13,8 @@ import cv2
 import numpy as np
 from google import genai
 from google.genai import types
+from google.genai.errors import APIError
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
 
@@ -129,6 +131,7 @@ hints = """- The Orange-Capped Blue Block (6x7) is the only movable object until
 """
 previous_action_text = "A"
 previous_action_reason = "The Orange-Capped Blue Block is currently to the right of its target, the '8x7Grid_BlackHead_BlueEye_WhiteSnout'. Continuing to move left ('A') will bring it closer horizontally to the desired position within the larger grey shape."
+GEMINI_RETRY_ATTEMPTS = 5
 
 
 class CustomReasoningAgent(ReasoningLLM):
@@ -138,7 +141,7 @@ class CustomReasoningAgent(ReasoningLLM):
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-pro"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 120
+    RANDOM_ACTION_MAX_LIMIT = 100
     RANDOM_ANALYSIS_FPS = 10
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = False
 
@@ -202,6 +205,21 @@ class CustomReasoningAgent(ReasoningLLM):
     def gemini_client(self):
         """Next Gemini client (round-robin)."""
         return next(self._gemini_cycle)
+
+    @retry(
+        stop=stop_after_attempt(GEMINI_RETRY_ATTEMPTS),  # Retry up to 5 times
+        wait=wait_exponential(multiplier=1, min=1, max=16),  # Exponential backoff: 1s, 2s, 4s, 8s, 16s
+        retry=retry_if_exception_type(APIError),
+        reraise=True
+    )
+    def generate_content_using_gemini(
+        self, model: str, contents: types.Content
+    ) -> types.GenerateContentResponse:
+        """Generate content using Gemini with retry on server error."""
+        return self.gemini_client.models.generate_content(
+            model=model,
+            contents=contents
+        )
 
     @property
     def name(self) -> str:
@@ -731,7 +749,7 @@ class CustomReasoningAgent(ReasoningLLM):
         )
         video_bytes = open(video_file_path, 'rb').read()
 
-        random_explorer_agent_response = self.gemini_client.models.generate_content(
+        random_explorer_agent_response = self.generate_content_using_gemini(
             model=self.RANDOM_ANALYSIS_MODEL,
             contents=types.Content(
                 parts=[
