@@ -692,13 +692,13 @@ class CustomReasoningAgent(ReasoningLLM):
         action_text = action_text.strip().upper()
         if action_text == "W":
             action = GameAction.ACTION1
-        elif action_text == "A":
-            action = GameAction.ACTION2
         elif action_text == "S":
+            action = GameAction.ACTION2
+        elif action_text == "A":
             action = GameAction.ACTION3
         elif action_text == "D":
             action = GameAction.ACTION4
-        elif action_text == "SPACE":
+        elif action_text == "F":
             action = GameAction.ACTION5
         elif action_text == "RESET":
             action = GameAction.RESET
@@ -729,13 +729,13 @@ class CustomReasoningAgent(ReasoningLLM):
         if action == GameAction.ACTION1:
             return "W"
         elif action == GameAction.ACTION2:
-            return "A"
-        elif action == GameAction.ACTION3:
             return "S"
+        elif action == GameAction.ACTION3:
+            return "A"
         elif action == GameAction.ACTION4:
             return "D"
         elif action == GameAction.ACTION5:
-            return "SPACE"
+            return "F"
         elif action == GameAction.RESET:
             return "RESET"
         elif action == GameAction.ACTION6:
