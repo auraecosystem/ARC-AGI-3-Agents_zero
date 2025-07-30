@@ -143,7 +143,11 @@ class CustomReasoningAgent(ReasoningLLM):
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
     RANDOM_ACTION_MAX_LIMIT = 100
     RANDOM_ANALYSIS_FPS = 4
-    RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = False
+    RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
+
+    # in random choice, trigger one action based on probablity effect on game board in inerval of 20 moves,
+    # use equal probability initially
+    # then increase game effect probability based on the game effect
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
