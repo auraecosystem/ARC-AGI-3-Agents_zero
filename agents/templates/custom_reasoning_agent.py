@@ -264,12 +264,37 @@ class CustomReasoningAgent(ReasoningLLM):
         pass
 
     def choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
+        """Choose the next action based on the current game state and frames."""
+        action = self._choose_action(frames, latest_frame)
+        action.reasoning = action.reasoning or {}
+        action.reasoning["current_goal"] = self.current_goal
+        action.reasoning["hints"] = self.hints
+        action.reasoning["previous_action_text"] = self.previous_action_text
+        action.reasoning["previous_action_reason"] = self.previous_action_reason
+        action.reasoning["trial_mode"] = self.trial_mode
+        action.reasoning["last_trial_mode"] = self._last_trial_mode
+        action.reasoning["random_action_count"] = self._random_action_count
+        action.reasoning["is_replaying_win_run"] = self._is_replaying_win_run
+        action.reasoning["replay_action_queue_length"] = len(self._replay_action_queue)
+        action.reasoning["pending_reset"] = self._pending_reset
+        action.reasoning["trial_runs_count"] = len(self.trial_runs)
+        action.reasoning["real_runs_count"] = len(self.real_runs)
+        action.reasoning["win_runs_count"] = len(self.win_runs)
+        action.reasoning["current_run_length"] = len(self.get_current_run())
+        return action
+
+    def _choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
         self.append_to_current_run(latest_frame)
 
         if self._pending_reset:
             self._pending_reset = False
             logger.info("Pending RESET triggered.")
-            return GameAction.RESET
+            action = GameAction.RESET
+            action.reasoning = {
+                "desired_action": f"{action.value}",
+                "reason": "Pending RESET triggered after mode switch."
+            }
+            return action
         # Detect unexpected reset
         if not self._is_replaying_win_run and len(frames) > 1 and frames[-2].score > 0 and latest_frame.score == 0:
             logger.warning("Unexpected reset detected. Initiating win run replay.")
@@ -295,6 +320,7 @@ class CustomReasoningAgent(ReasoningLLM):
             self.generate_hints_from_win_run()
             self.trial_mode = True
             self._pending_reset = True  # Defer RESET
+            self._random_action_count = 0
             logger.info(f"Game won! Deferring RESET. Trial mode ON. Current run: {len(current_run)} frames.")
             return self.choose_random_action(frames, latest_frame)  # Return a non-RESET action first
         # Replay mode: play saved win run actions
@@ -358,10 +384,11 @@ class CustomReasoningAgent(ReasoningLLM):
             self.current_goal = self.retrieve_top_hypothesis(all_random_hypothesis_text)
             # logger.info("Skipping random hypothesis analysis for testing.")
             self._random_action_count = 0
+            action = self.choose_random_action([], latest_frame)  # Return any non-RESET action for now
+            action.reasoning["all_random_hypothesis_text"] = all_random_hypothesis_text
 
         self._last_trial_mode = self.trial_mode
         self._pending_reset = True  # Defer RESET to next frame
-        return self.choose_random_action([], latest_frame)  # Return any non-RESET action for now
 
 
     def append_to_current_run(self, latest_frame: FrameData) -> None:
