@@ -154,7 +154,7 @@ class CustomReasoningAgent(ReasoningLLM):
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 29
+    RANDOM_ACTION_MAX_LIMIT = 10
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
 
@@ -430,6 +430,7 @@ class CustomReasoningAgent(ReasoningLLM):
             self._random_action_count = 0
             action = self.choose_random_action([], latest_frame)  # Return any non-RESET action for now
             action.reasoning["all_random_hypothesis_text"] = all_random_hypothesis_text
+            action.reasoning["random_analysis_actions_summary"] = self.random_analysis_actions_summary
 
         self._last_trial_mode = self.trial_mode
         self._pending_reset = True  # Defer RESET to next frame
@@ -766,27 +767,52 @@ class CustomReasoningAgent(ReasoningLLM):
         if not frames:
             return "No frames available for random analysis."
 
-        action_counts = {
+        total_action_counts = {
             "W": 0,
             "A": 0,
             "S": 0,
             "D": 0,
-            "CLICK": 0
+            "F": 0,  # Assuming F is another action
+            "CLICK": 0,
+            "RESET": 0,
         }
+        no_effect_actions = {
+            "W": 0,
+            "A": 0,
+            "S": 0,
+            "D": 0,
+            "F": 0,  # Assuming F is another action
+            "CLICK": 0,
+            "RESET": 0,
+        }
+        prev_frame = None
 
         for frame in frames:
             action = frame.action_input.id
-            action_counts[action.action_type] += 1
+            if action.is_complex():
+                action_text = "CLICK"
+            else:
+                action_text = self.convert_game_action_to_text(action)
+            total_action_counts[action_text] += 1
+            if self.is_frames_equal(prev_frame, frame):
+                no_effect_actions[action_text] += 1
+            prev_frame = frame
+
+        # remove reset
+        total_action_counts.pop("RESET", None)
+        no_effect_actions.pop("RESET", None)
+        # remove F
+        total_action_counts.pop("F", None)
+        no_effect_actions.pop("F", None)
 
         summary_lines = []
-        for action, count in action_counts.items():
-            action_text = self.convert_game_action_to_text(GameAction)
-            if action_text.startswith("CLICK"):
-                action = "CLICK"
-            summary_line = f"- out of {count} {action_text}, {action} had no effect on the game."
+        for action_text, count in total_action_counts.items():
+            summary_line = f"- out of {count} {action_text}, {no_effect_actions[action_text]} had no effect on the game."
             summary_lines.append(summary_line)
 
-        return "\n".join(summary_lines)             
+        summary_lines_text = "\n".join(summary_lines)
+        logger.info(f"Random analysis actions summary: {summary_lines_text}")
+        return summary_lines_text
 
     def do_random_hypothesis_analysis(self, frames: List[FrameData]) -> str:
         """Perform random hypothesis analysis on the frames."""
