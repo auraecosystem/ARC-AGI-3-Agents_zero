@@ -1,28 +1,29 @@
-import json
 import re
 
-def extract_json_block(text):
-    """
-    Extracts the first valid JSON object from a text string.
-    """
-    try:
-        match = re.search(r'\{(?:[^{}]|(?R))*\}', text, re.DOTALL)
-        if match:
-            json_str = match.group(0)
-            return json.loads(json_str)
-        else:
-            raise ValueError("No JSON block found in the input text.")
-    except json.JSONDecodeError as e:
-        raise ValueError(f"Failed to decode JSON: {e}")
+def extract_first_json_block(markdown_text):
+    pattern = r"```json\s*(\{.*?\})\s*```"
+    match = re.search(pattern, markdown_text, re.DOTALL)
+    return match.group(1).strip() if match else ""
 
-# Example usage
-response_text = """
-The hypothesis states the primary objective is to push the large orange/blue block...
+markdown = """
+Some text here.
+
+```json
 {
-  "reason": "The objective is to push the large orange/blue block into the black goal.",
-  "action": "S"
+  "name": "Alice",
+  "age": 30
 }
+````
+
+Another block:
+
+```json
+{
+  "city": "Wonderland"
+}
+```
+
 """
 
-parsed = extract_json_block(response_text)
-print(parsed)
+result = extract_first_json_block(markdown)
+print(result)

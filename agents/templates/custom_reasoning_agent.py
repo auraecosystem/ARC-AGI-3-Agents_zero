@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import random
+import re
 import textwrap
 from typing import List
 import os
@@ -538,6 +539,11 @@ class CustomReasoningAgent(ReasoningLLM):
                 return False
         return True
 
+    def extract_first_json_block(self, markdown_text):
+        pattern = r"```json\s*(\{.*?\})\s*```"
+        match = re.search(pattern, markdown_text, re.DOTALL)
+        return match.group(1).strip() if match else ""
+
     def generate_next_action(
         self,
         latest_frame: FrameData,
@@ -589,7 +595,8 @@ class CustomReasoningAgent(ReasoningLLM):
             response.usage.total_tokens, response.choices[0].message.content
         )
         
-        response_message_text = response.choices[0].message.content.strip()
+        response_message_text = response.choices[0].message.content
+        response_message_text = self.extract_first_json_block(response_message_text).strip()
         response_message_text = response_message_text.removeprefix("```json")
         response_message_text = response_message_text.removesuffix("```")
         response_message_text = response_message_text.strip()
