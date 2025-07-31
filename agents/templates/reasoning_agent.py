@@ -14,63 +14,6 @@ from .llm_agents import ReasoningLLM
 
 logger = logging.getLogger(__name__)
 
-game_analysis = """This game is a puzzle-platformer where the player navigates a character and manipulates a movable object to reach a target, with actions being highly dependent on context and character state.
-
-Here's a breakdown of the game mechanics:
-
-**1. Player Character & Movement:**
-*   The player controls a **blue square with a white shape** (either an "L-shape" or a "straight bar"). This white shape appears to represent the player's "stance" or "mode."
-*   **WASD keys** control horizontal and vertical movement across the dark gray path area.
-*   The player's **stance (white shape) changes** based on vertical movement: Moving **Down (S)** seems to put the player in the **straight bar stance**, while moving **Up (W)** tends to switch back to the **L-shape stance**. Horizontal movement (A, D) retains the current stance.
-
-**2. Interactive Objects:**
-*   **Blue Square (fixed):** A fixed platform that can hold the orange bar.
-*   **Orange Bar (movable):** A key interactive object that can exist in three states:
-    *   **On the blue square:** Joined with the blue square.
-    *   **Off the blue square:** Detached and located to the right of the blue square.
-    *   **On the player:** Carried by the player character.
-*   **Target (black square with blue dot and white shapes, top-right):** The objective of the level, implying that the player needs to bring something here or arrive in a specific state.
-
-**3. Click Mechanics (Context-Sensitive Actions):**
-The outcome of a mouse click (x,y) is highly dependent on:
-*   **What is clicked:** The blue square, the orange bar, the player character, or empty space.
-*   **The state of the orange bar:** Is it on the blue square, off the blue square, or on the player?
-*   **The player's current stance:** L-shape or straight bar.
-*   **The player's precise position** relative to the clicked object.
-
-Specific Click Interactions Observed:
-
-*   **Moving Orange Bar OFF the Blue Square:**
-    *   Clicking **on the combined blue+orange unit** (e.g., at 0:10, 0:13, 0:26) consistently moves the orange bar to the right, off the blue square.
-    *   Clicking **just to the right of the combined blue+orange unit** (e.g., at 0:05) also moves the orange bar to the right, off the blue square.
-    *   **Failure Condition:** Clicking on the `blue+orange` unit when the player is in the **L-shape stance and at a specific starting position (26,32)** results in a "fail" (red screen and level reset). This implies a very specific, unforgiving "wrong move" from the starting point.
-
-*   **Moving Orange Bar ONTO the Blue Square:**
-    *   Clicking **on the detached orange bar** (e.g., at 0:08) moves it back onto the blue square.
-    *   Clicking **just to the right of the empty blue square** when the orange bar is detached and to the right (e.g., at 0:11) also moves it back onto the blue square.
-
-*   **Picking Up Orange Bar (onto player):**
-    *   When the orange bar is *off* the blue square (to its right), clicking on the **empty blue square** (e.g., at 0:16) causes the orange bar to transfer onto the player character.
-    *   This action causes the player's appearance to change (blue square becomes darker, white shape temporarily disappears). The orange bar then moves with the player.
-    *   This action seems to require the player to be in the **L-shape stance and at a specific position (e.g., 40,26)** relative to the empty blue square.
-
-*   **Dropping Orange Bar (from player):**
-    *   Clicking **on the player character while it is carrying the orange bar** (e.g., at 0:19) results in a "fail" (red screen and level reset).
-    *   This implies that the orange bar must be dropped *elsewhere*, likely on the target or another designated spot, rather than by clicking the player itself.
-
-**4. Game State & Progress Indicators:**
-*   **Lives/Attempts (Red Squares, top-right):** These squares change from red to gray upon a "fail" (red screen), indicating a limited number of attempts or "lives."
-*   **Progress/Levels (Purple Squares, top-middle):** The row of gray/purple squares at the top suggests overall game progress or a sequence of levels, where purple marks completed levels.
-
-**5. Goal of the Game:**
-The primary goal appears to be navigating the player character and successfully manipulating the orange bar to reach the target area (the black square at the top-right). The most plausible win condition involves carrying the orange bar to the target and then depositing it there, or arriving at the target with the bar.
-
-**Innovative and Novel Mechanics:**
-*   **Stance-Dependent Actions:** The player's changing white shape (L-shape/bar) acts as a crucial "mode" that dictates the outcome of clicks, adding a layer of strategic decision-making beyond simple movement.
-*   **Precise Positional Requirements:** Certain actions, particularly the critical "pick up" of the orange bar, are only triggered when the player is in a specific stance *and* at a precise location relative to the interactive object. This demands meticulous planning and execution.
-*   **Implicit Drop Mechanic:** The explicit "fail" for clicking on the player while carrying the bar creates a puzzle in itself, forcing the player to deduce the correct way to "unload" the bar by clicking on a specific *external* location (likely the target).
-*   **Hidden State and Context:** The game doesn't provide explicit instructions, requiring the player to observe, hypothesize, and experiment to understand the complex interplay of character stance, object states, and spatial relationships that govern actions. This fosters "theory of mind" as the player tries to understand the game's internal logic."""
-print("length of game analysis:", len(game_analysis))
 
 class ReasoningActionResponse(BaseModel):
     """Action response structure for reasoning agent."""
@@ -94,7 +37,7 @@ class ReasoningActionResponse(BaseModel):
     aggregated_findings: str = Field(
         description="Summary of discoveries and learnings so far",
         min_length=10,
-        max_length=6000,
+        max_length=2000,
     )
 
 
@@ -257,10 +200,9 @@ class ReasoningAgent(ReasoningLLM):
     def build_user_prompt(self, latest_frame: FrameData) -> str:
         """Build the user prompt for hypothesis-driven exploration."""
         return textwrap.dedent(
-            f"""
+            """
 You are playing a video game.
 
-{game_analysis}
 Your ultimate goal is to understand the rules of the game and explain them to your colleagues.
 
 The game is complex, and may look like an IQ test.
@@ -367,7 +309,7 @@ Hint:
             )
 
         raw_grid_text = self.pretty_print_3d(latest_frame.frame)
-        user_message_text = f"Your previous action was: {json.dumps(latest_action.model_dump() if latest_action else None, indent=2)}\n\nWhat should you do next?"
+        user_message_text = f"Your previous action was: {json.dumps(latest_action.model_dump() if latest_action else None, indent=2)}\n\nAttached are the visual screen and raw grid data.\n\nRaw Grid:\n{raw_grid_text}\n\nWhat should you do next?"
 
         current_image_b64 = base64.b64encode(map_image).decode()
         user_message_content.extend(
