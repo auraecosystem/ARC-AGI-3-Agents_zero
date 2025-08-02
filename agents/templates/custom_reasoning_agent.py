@@ -435,7 +435,7 @@ class CustomReasoningAgent(ReasoningLLM):
 
         self._last_trial_mode = self.trial_mode
         self._pending_reset = True  # Defer RESET to next frame
-        return self.choose_random_action([], latest_frame)
+        return action
 
 
     def append_to_current_run(self, latest_frame: FrameData) -> None:
