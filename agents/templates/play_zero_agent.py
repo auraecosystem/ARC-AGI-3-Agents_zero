@@ -298,8 +298,9 @@ class PlayZeroAgent(ReasoningLLM):
                 "desired_action": f"{action.value}",
                 "reason": "Game has not been played yet, resetting."
             }
+            return action
         do_game_analysis_flag = False
-        if self.is_max_goal_actions_limit_reached:
+        if self.is_max_goal_actions_limit_reached():
             do_game_analysis_flag = True
         if self.random_play_flag:
             action = self.choose_random_action(frames, latest_frame)
@@ -320,6 +321,12 @@ class PlayZeroAgent(ReasoningLLM):
             reasoning["previous_action_reason"] = self.previous_action_reason
             self.previous_action_text = self.convert_game_action_to_text(action)
             self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
+
+        is_frame_repeated = self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame)
+        action.reasoning["game_effect_flag"] = "no" if is_frame_repeated else "some"
+        self.game_context.goal_actions_count += 1
+        if self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG and is_frame_repeated:
+            self.game_context.goal_actions_count -= 1
 
         if do_game_analysis_flag:
             self.game_context = self.do_game_analysis(frames, latest_frame)
