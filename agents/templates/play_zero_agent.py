@@ -51,6 +51,10 @@ D: Move Right
 CLICK(x,y): Click on the area by giving x,y space (x: <0, 63>, y: <0, 63>)
 Sometimes, some actions has no effect. 
 
+Random Analysis Actions summary
+This is a summary of the random analysis actions taken in the game.
+{logical_analysis_actions_summary}
+
 - Write hints clearly with element names clearly
 - Keep the hints targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hints."
 - element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
@@ -299,21 +303,28 @@ class PlayZeroAgent(ReasoningLLM):
                 "reason": "Game has not been played yet, resetting."
             }
             return action
-        do_game_analysis_flag = False
-        if self.is_max_goal_actions_limit_reached():
-            do_game_analysis_flag = True
+            
+        previous_frame = frames[-2] if len(frames) > 1 else latest_frame
+
+        if not self.random_play_flag:
+            is_goal_achieved_flag, goal_achievement_check_output = self.is_goal_achieved(
+                previous_frame=previous_frame,
+                current_frame=latest_frame,
+            )        
+        if self.is_max_goal_actions_limit_reached() or is_goal_achieved_flag:
+            logger.info("Maximum goal actions limit reached or goal achieved, performing game analysis.")
+            self.game_context = self.do_game_analysis(frames, latest_frame)
+
+
         if self.random_play_flag:
             action = self.choose_random_action(frames, latest_frame)
             if self.is_max_goal_actions_limit_reached():
                 self.random_play_flag = False
         else:
-            is_goal_achieved_flag, goal_achievement_check_output = self.is_goal_achieved(
-                previous_frame=frames[-2] if len(frames) > 1 else latest_frame,
-                current_frame=latest_frame,
-            )        
-            if is_goal_achieved_flag:
-                do_game_analysis_flag = True
-            action = self.generate_next_action(latest_frame)
+            action = self.generate_next_action(
+                previous_frame=previous_frame,
+                latest_frame=latest_frame,
+            )
             reasoning = action.reasoning or {}
             reasoning["goal_achievement_check_output"] = goal_achievement_check_output
             reasoning["is_goal_achieved_flag"] = is_goal_achieved_flag
@@ -329,9 +340,6 @@ class PlayZeroAgent(ReasoningLLM):
             logger.info("Skipping repeated frame, goal action count not increased.")
             self.game_context.goal_actions_count -= 1
 
-        if do_game_analysis_flag:
-            self.game_context = self.do_game_analysis(frames, latest_frame)
-
         return action
 
     def do_game_analysis(
@@ -340,7 +348,7 @@ class PlayZeroAgent(ReasoningLLM):
         """Perform game analysis and return a summary."""
         logger.info("Performing game analysis on frames...")
         # generate unique file name for video
-        video_file_name = f"game_analysis_{frames[0].game_id}.mp4"
+        video_file_name = f"game_analysis_{frames[-1].game_id}.mp4"
         video_file_path = os.path.join("recordings", video_file_name)
         self.generate_video_from_grids(
             frames=frames,
@@ -349,15 +357,24 @@ class PlayZeroAgent(ReasoningLLM):
             skip_repeated_frames=self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG,
         )
         logger.info(f"Video saved to {video_file_path}")
-        multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(video_file_path)
-        
         logical_analysis_actions_summary = self.generate_logical_analysis_summary(frames)
 
-        top_hypothesis = self.generate_top_hypothesis(
-            multiple_hypothesis_text=multiple_hypothesis_text,
-            logical_analysis_actions_summary=logical_analysis_actions_summary
+        # multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(video_file_path)
+        
+
+        # top_hypothesis = self.generate_top_hypothesis(
+        #     multiple_hypothesis_text=multiple_hypothesis_text,
+        #     logical_analysis_actions_summary=logical_analysis_actions_summary
+        # )
+        hints = self.generate_hints_from_video(
+            video_file_path,
+            logical_analysis_actions_summary,
         )
-        hints = self.generate_hints_from_video(video_file_path)
+        top_hypothesis = "No top hypothesis generated yet."
+        
+        # Update game context with analysis results
+        multiple_hypothesis_text = "No multiple hypotheses generated yet."
+        logical_analysis_actions_summary = "No logical analysis actions summary available yet."
 
         return GameContext(
             goal=top_hypothesis,
@@ -427,41 +444,42 @@ class PlayZeroAgent(ReasoningLLM):
         return all_random_hypothesis_text
 
     def generate_hints_from_video(
-        self, video_file_path: str
+        self, video_file_path: str, logical_analysis_actions_summary: str
     ) -> str:
-        """Generate random hypothesis analysis from a video file."""
-        logger.info(f"Generating random hypothesis analysis from video: {video_file_path}")
+        """Generate hints from a video file."""
+        logger.info(f"Generating hints from video: {video_file_path}")
         if not os.path.exists(video_file_path):
             logger.error(f"Video file does not exist: {video_file_path}")
             return "Analysis not yet done."
         video_bytes = open(video_file_path, 'rb').read()
 
-        random_explorer_agent_response = self.generate_content_using_gemini(
+        hint_chat_response = self.generate_content_using_gemini(
             model=self.RANDOM_ANALYSIS_MODEL,
             contents=types.Content(
                 parts=[
                     types.Part(
                         inline_data=types.Blob(data=video_bytes, mime_type='video/mp4')
                     ),
-                    types.Part(text=HINTS_GENERATOR_PROMPT)
+                    types.Part(text=HINTS_GENERATOR_PROMPT.format(
+                        logical_analysis_actions_summary=logical_analysis_actions_summary,
+                    ))
                 ]
             )
         )
         
         self.track_tokens(
-            random_explorer_agent_response.usage_metadata.total_token_count, random_explorer_agent_response.text
+            hint_chat_response.usage_metadata.total_token_count, hint_chat_response.text
         )
-        all_random_hypothesis_text = random_explorer_agent_response.text.strip()
-        logger.info(f"Random analysis completed: {all_random_hypothesis_text}")
-        return all_random_hypothesis_text
+        hints = hint_chat_response.text.strip()
+        logger.info(f"Hints generated: {hints}")
+        return hints
 
     def generate_next_action(
         self,
+        previous_frame: FrameData,
         latest_frame: FrameData,
     ) -> GameAction:
         """Generate the next action based on the current goal and previous action."""
-        current_run = self.get_current_run()
-        previous_frame = current_run[-2] if len(current_run) > 1 else latest_frame
 
         if self.is_frames_equal(previous_frame, latest_frame):
             game_effect_flag = "no"
@@ -579,8 +597,8 @@ class PlayZeroAgent(ReasoningLLM):
         self.capture_reasoning_from_response(response)
 
         response_message_text = response.choices[0].message.content
-        response_message_text = response_message_text.lower()
         logger.info(f"Response: {response_message_text}")
+        response_message_text = response_message_text.lower()
         if "yes" in response_message_text:
             response_flag = True
         elif "no" in response_message_text:
