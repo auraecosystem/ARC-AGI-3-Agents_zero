@@ -192,7 +192,7 @@ class PlayZeroAgent(ReasoningLLM):
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 10
+    RANDOM_ACTION_MAX_LIMIT = 30
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
 
@@ -306,6 +306,7 @@ class PlayZeroAgent(ReasoningLLM):
             
         previous_frame = frames[-2] if len(frames) > 1 else latest_frame
 
+        is_goal_achieved_flag = False
         if not self.random_play_flag:
             is_goal_achieved_flag, goal_achievement_check_output = self.is_goal_achieved(
                 previous_frame=previous_frame,
