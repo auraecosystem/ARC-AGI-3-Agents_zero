@@ -293,6 +293,10 @@ class PlayZeroAgent(ReasoningLLM):
         action.reasoning = action.reasoning or {}
         game_context_dict = self.game_context.model_dump()
         action.reasoning.update(game_context_dict)
+        self.previous_action_text = self.convert_game_action_to_text(action)
+        self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
+        action.reasoning["previous_action_text"] = self.previous_action_text
+        action.reasoning["previous_action_reason"] = self.previous_action_reason
         return action
 
     def _choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
@@ -308,6 +312,7 @@ class PlayZeroAgent(ReasoningLLM):
         previous_frame = frames[-2] if len(frames) > 1 else latest_frame
 
         is_goal_achieved_flag = False
+        goal_achievement_check_output = "no"
         if not self.random_play_flag:
             is_goal_achieved_flag, goal_achievement_check_output = self.is_goal_achieved(
                 previous_frame=previous_frame,
@@ -332,8 +337,6 @@ class PlayZeroAgent(ReasoningLLM):
             reasoning["is_goal_achieved_flag"] = is_goal_achieved_flag
             reasoning["previous_action_text"] = self.previous_action_text
             reasoning["previous_action_reason"] = self.previous_action_reason
-            self.previous_action_text = self.convert_game_action_to_text(action)
-            self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
 
         is_frame_repeated = self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame)
         action.reasoning["game_effect_flag"] = "no" if is_frame_repeated else "some"
