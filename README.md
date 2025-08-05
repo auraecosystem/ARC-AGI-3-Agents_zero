@@ -29,6 +29,7 @@ export ARC_API_KEY="your_api_key_here"
 uv run main.py --agent=random --game=ls20
 uv run main.py --agent=hypothesisnavigatoragent.gemini-2.5-flash.with-observe.high --game=ls20
 uv run main.py --agent=customreasoningagent --game=ls20
+uv run main.py --agent=playzeroagent --game=ls20
 ```
 
 For more information, see the [documentation](https://three.arcprize.org/docs#quick-start) or the [tutorial video](https://youtu.be/xEVg9dcJMkw).
