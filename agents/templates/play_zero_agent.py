@@ -188,7 +188,7 @@ class PlayZeroAgent(ReasoningLLM):
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
-    RANDOM_ACTION_MAX_LIMIT = 30
+    RANDOM_ACTION_MAX_LIMIT = 10
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
 
@@ -326,6 +326,7 @@ class PlayZeroAgent(ReasoningLLM):
         action.reasoning["game_effect_flag"] = "no" if is_frame_repeated else "some"
         self.game_context.goal_actions_count += 1
         if self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG and is_frame_repeated:
+            logger.info("Skipping repeated frame, goal action count not increased.")
             self.game_context.goal_actions_count -= 1
 
         if do_game_analysis_flag:
@@ -467,7 +468,7 @@ class PlayZeroAgent(ReasoningLLM):
         else:
             game_effect_flag = "some"
         prompt = NEXT_ACTION_GENERATOR_PROMPT.format(
-            current_goal=self.current_goal,
+            current_goal=self.game_context.goal,
             hints=textwrap.fill(hints, width=80),
             previous_action_text=self.previous_action_text,
             previous_action_reason=self.previous_action_reason,
@@ -538,7 +539,7 @@ class PlayZeroAgent(ReasoningLLM):
         current_image_b64 = base64.b64encode(current_map_image).decode()
 
         prompt = GOAL_ACHIEVEMENT_CHECK_PROMPT.format(
-            current_goal=self.current_goal,
+            current_goal=self.game_context.goal,
         )
         
         messages = [
@@ -742,7 +743,7 @@ class PlayZeroAgent(ReasoningLLM):
         )
 
         # === Determine frame size from first frame ===
-        first_grid = frames[0].frame[0]
+        first_grid = frames[-1].frame[0]
         h, w = len(first_grid), len(first_grid[0])
         frame_size = (w * pixel_size, h * pixel_size)
 
