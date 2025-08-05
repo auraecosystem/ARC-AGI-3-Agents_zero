@@ -360,22 +360,16 @@ class PlayZeroAgent(ReasoningLLM):
         logger.info(f"Video saved to {video_file_path}")
         logical_analysis_actions_summary = self.generate_logical_analysis_summary(frames)
 
-        # multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(video_file_path)
-        
+        multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(video_file_path)
 
-        # top_hypothesis = self.generate_top_hypothesis(
-        #     multiple_hypothesis_text=multiple_hypothesis_text,
-        #     logical_analysis_actions_summary=logical_analysis_actions_summary
-        # )
+        top_hypothesis = self.generate_top_hypothesis(
+            multiple_hypothesis_text=multiple_hypothesis_text,
+            logical_analysis_actions_summary=logical_analysis_actions_summary
+        )
         hints = self.generate_hints_from_video(
             video_file_path,
             logical_analysis_actions_summary,
         )
-        top_hypothesis = "No top hypothesis generated yet."
-        
-        # Update game context with analysis results
-        multiple_hypothesis_text = "No multiple hypotheses generated yet."
-        logical_analysis_actions_summary = "No logical analysis actions summary available yet."
 
         return GameContext(
             goal=top_hypothesis,
@@ -405,13 +399,13 @@ class PlayZeroAgent(ReasoningLLM):
             messages=messages,
             # reasoning_effort="low",
         )
+        top_hypothesis = response.choices[0].message.content.strip()
         
         self.track_tokens(
             response.usage.total_tokens, response.choices[0].message.content
         )
         self.capture_reasoning_from_response(response)
 
-        top_hypothesis = response.choices[0].message.content
         logger.info(f"Top hypothesis retrieved: {top_hypothesis}")
         return top_hypothesis
 
@@ -437,10 +431,10 @@ class PlayZeroAgent(ReasoningLLM):
             )
         )
         
+        all_random_hypothesis_text = random_explorer_agent_response.text.strip()
         self.track_tokens(
             random_explorer_agent_response.usage_metadata.total_token_count, random_explorer_agent_response.text
         )
-        all_random_hypothesis_text = random_explorer_agent_response.text.strip()
         logger.info(f"Random analysis completed: {all_random_hypothesis_text}")
         return all_random_hypothesis_text
 
@@ -468,10 +462,10 @@ class PlayZeroAgent(ReasoningLLM):
             )
         )
         
+        hints = hint_chat_response.text.strip()
         self.track_tokens(
             hint_chat_response.usage_metadata.total_token_count, hint_chat_response.text
         )
-        hints = hint_chat_response.text.strip()
         logger.info(f"Hints generated: {hints}")
         return hints
 
@@ -521,11 +515,11 @@ class PlayZeroAgent(ReasoningLLM):
             messages=messages,
             # reasoning_effort="low",
         )
+        response_message_text = response.choices[0].message.content.strip()
         self.track_tokens(
             response.usage.total_tokens, response.choices[0].message.content
         )
         
-        response_message_text = response.choices[0].message.content
         response_message_text = self.extract_first_json_block(response_message_text).strip()
         response_message_text = response_message_text.removeprefix("```json")
         response_message_text = response_message_text.removesuffix("```")
@@ -592,12 +586,12 @@ class PlayZeroAgent(ReasoningLLM):
                 # reasoning_effort="low",
                 temperature=0.01,
         )
+        response_message_text = response.choices[0].message.content.strip()
         self.track_tokens(
             response.usage.total_tokens, response.choices[0].message.content
         )
         self.capture_reasoning_from_response(response)
 
-        response_message_text = response.choices[0].message.content
         logger.info(f"Response: {response_message_text}")
         response_message_text = response_message_text.lower()
         if "yes" in response_message_text:
