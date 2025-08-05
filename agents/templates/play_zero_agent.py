@@ -229,12 +229,25 @@ class PlayZeroAgent(ReasoningLLM):
         self._openai_cycle = cycle(self._openai_clients)
         self._gemini_cycle = cycle(self._gemini_clients)
 
-        self.previous_action_text = "RESET"
-        self.previous_action_reason = "Game has been reset."
+        self.previous_action: GameAction = GameAction.RESET
+        self.previous_action.reasoning = {
+            "desired_action": f"{self.previous_action.value}",
+            "reason": "Game has been reset."
+        }
         self.game_context = GameContext(
             max_goal_actions_limit=self.RANDOM_ACTION_MAX_LIMIT,
         )
         self.random_play_flag: bool = True
+
+    @property
+    def previous_action_text(self) -> str:
+        """Get the text representation of the previous action."""
+        return self.convert_game_action_to_text(self.previous_action)
+
+    @property
+    def previous_action_reason(self) -> str:
+        """Get the reasoning of the previous action."""
+        return self.previous_action.reasoning.get("reason", "No specific reason provided")
 
     @property
     def client(self):
@@ -293,10 +306,8 @@ class PlayZeroAgent(ReasoningLLM):
         action.reasoning = action.reasoning or {}
         game_context_dict = self.game_context.model_dump()
         action.reasoning.update(game_context_dict)
-        self.previous_action_text = self.convert_game_action_to_text(action)
-        self.previous_action_reason = action.reasoning.get("reason", "No specific reason provided")
-        action.reasoning["previous_action_text"] = self.previous_action_text
-        action.reasoning["previous_action_reason"] = self.previous_action_reason
+        action.reasoning["previous_action_text"] =self.convert_game_action_to_text(self.previous_action)
+        action.reasoning["previous_action_reason"] = self.previous_action.reasoning.get("reason", "No specific reason provided")
         return action
 
     def _choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
@@ -335,8 +346,6 @@ class PlayZeroAgent(ReasoningLLM):
             reasoning = action.reasoning or {}
             reasoning["goal_achievement_check_output"] = goal_achievement_check_output
             reasoning["is_goal_achieved_flag"] = is_goal_achieved_flag
-            reasoning["previous_action_text"] = self.previous_action_text
-            reasoning["previous_action_reason"] = self.previous_action_reason
 
         is_frame_repeated = self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame)
         action.reasoning["game_effect_flag"] = "no" if is_frame_repeated else "some"
