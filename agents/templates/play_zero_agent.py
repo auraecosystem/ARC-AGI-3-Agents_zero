@@ -190,8 +190,9 @@ class PlayZeroAgent(ReasoningLLM):
     MAX_ACTIONS = 500
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
-    RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
-    TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-pro"
+    RANDOM_ANALYSIS_MODEL = "gemini-2.5-flash"
+    HINT_GENERATOR_MODEL = "gemini-2.5-flash"
+    TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-flash"
     RANDOM_ACTION_MAX_LIMIT = 30
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
@@ -314,13 +315,13 @@ class PlayZeroAgent(ReasoningLLM):
             )        
         if self.is_max_goal_actions_limit_reached() or is_goal_achieved_flag:
             logger.info("Maximum goal actions limit reached or goal achieved, performing game analysis.")
+            if self.random_play_flag:
+                self.random_play_flag = False
             self.game_context = self.do_game_analysis(frames, latest_frame)
 
 
         if self.random_play_flag:
             action = self.choose_random_action(frames, latest_frame)
-            if self.is_max_goal_actions_limit_reached():
-                self.random_play_flag = False
         else:
             action = self.generate_next_action(
                 previous_frame=previous_frame,
@@ -449,7 +450,7 @@ class PlayZeroAgent(ReasoningLLM):
         video_bytes = open(video_file_path, 'rb').read()
 
         hint_chat_response = self.generate_content_using_gemini(
-            model=self.RANDOM_ANALYSIS_MODEL,
+            model=self.HINT_GENERATOR_MODEL,
             contents=types.Content(
                 parts=[
                     types.Part(
