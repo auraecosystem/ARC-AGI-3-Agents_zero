@@ -557,7 +557,7 @@ class PlayZeroAgent(ReasoningLLM):
     def is_goal_achieved(
         self, previous_frame: FrameData, current_frame: FrameData
     ) -> tuple[bool, str]:
-        previous_grid = previous_   frame.frame[0] if previous_frame.frame else []
+        previous_grid = previous_frame.frame[0] if previous_frame.frame else []
         previous_map_image = self.generate_grid_image_with_zone(previous_grid)
         previous_image_b64 = base64.b64encode(previous_map_image).decode()
 
