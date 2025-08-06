@@ -102,6 +102,10 @@ D: Move Right
 CLICK(x,y): Click on the area by giving x,y space (x: <0, 63>, y: <0, 63>)
 Sometimes, some actions has no effect. 
 
+Random Analysis Actions summary
+This is a summary of the random analysis actions taken in the game.
+{logical_analysis_actions_summary}
+
 - Write hypothesis clearly with element names clearly
 - Keep the hypothesis targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
 - element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
@@ -374,7 +378,9 @@ class PlayZeroAgent(ReasoningLLM):
         logger.info(f"Video saved to {video_file_path}")
         logical_analysis_actions_summary = self.generate_logical_analysis_summary(frames)
 
-        multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(video_file_path)
+        multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(
+            video_file_path, logical_analysis_actions_summary
+        )
 
         top_hypothesis = self.generate_top_hypothesis(
             multiple_hypothesis_text=multiple_hypothesis_text,
@@ -424,7 +430,7 @@ class PlayZeroAgent(ReasoningLLM):
         return top_hypothesis
 
     def generate_multiple_random_hypothesis_from_video(
-        self, video_file_path: str
+        self, video_file_path: str, logical_analysis_actions_summary: str
     ) -> str:
         """Generate random hypothesis analysis from a video file."""
         logger.info(f"Generating random hypothesis analysis from video: {video_file_path}")
@@ -440,7 +446,10 @@ class PlayZeroAgent(ReasoningLLM):
                     types.Part(
                         inline_data=types.Blob(data=video_bytes, mime_type='video/mp4')
                     ),
-                    types.Part(text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT)
+                    types.Part(text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT.format(
+                        logical_analysis_actions_summary=logical_analysis_actions_summary,
+                    )
+                    )
                 ]
             )
         )
@@ -696,7 +705,7 @@ class PlayZeroAgent(ReasoningLLM):
             return "UNKNOWN"
 
     def generate_logical_analysis_summary(self, frames: List[FrameData]) -> str:
-        """Generate a summary of logical analysis actions taken in the game."""
+        """Generate a detailed, human-readable summary of logical analysis actions taken in the game."""
         if not frames:
             return "No frames available for logical analysis."
 
@@ -705,47 +714,62 @@ class PlayZeroAgent(ReasoningLLM):
             "A": 0,
             "S": 0,
             "D": 0,
-            "F": 0,  # Assuming F is another action
+            "F": 0,      # Assuming F is another action
             "CLICK": 0,
-            "RESET": 0,
+            "RESET": 0,  # Will be excluded later
         }
         no_effect_actions = {
             "W": 0,
             "A": 0,
             "S": 0,
             "D": 0,
-            "F": 0,  # Assuming F is another action
+            "F": 0,
             "CLICK": 0,
             "RESET": 0,
         }
-        prev_frame = None
 
+        prev_frame = None
         for frame in frames:
             action = frame.action_input.id
             if action.is_complex():
                 action_text = "CLICK"
             else:
                 action_text = self.convert_game_action_to_text(action)
+
+            if action_text not in total_action_counts:
+                continue  # Skip unknown actions
+
             total_action_counts[action_text] += 1
             if self.is_frames_equal(prev_frame, frame):
                 no_effect_actions[action_text] += 1
             prev_frame = frame
 
-        # remove reset
-        total_action_counts.pop("RESET", None)
-        no_effect_actions.pop("RESET", None)
-        # remove F
-        total_action_counts.pop("F", None)
-        no_effect_actions.pop("F", None)
+        # Remove non-relevant actions
+        for key in ["RESET", "F"]:
+            total_action_counts.pop(key, None)
+            no_effect_actions.pop(key, None)
 
-        summary_lines = []
-        for action_text, count in total_action_counts.items():
-            summary_line = f"- out of {count} {action_text}, {no_effect_actions[action_text]} had no effect on the game."
-            summary_lines.append(summary_line)
+        summary_lines = ["Out of all user inputs recorded during gameplay:\n"]
 
-        summary_lines_text = "\n".join(summary_lines)
-        logger.info(f"Logical analysis actions summary: {summary_lines_text}")
-        return summary_lines_text
+        for action_text in total_action_counts:
+            total = total_action_counts[action_text]
+            no_effect = no_effect_actions[action_text]
+
+            if total == 0:
+                continue  # Skip actions that were never used
+
+            if no_effect == total:
+                line = f"- **{action_text}** was used {total} time{'s' if total > 1 else ''}, and all had no effect on the game."
+            elif no_effect == 0:
+                line = f"- **{action_text}** was used {total} time{'s' if total > 1 else ''}, and all had an effect on the game."
+            else:
+                line = f"- **{action_text}** was used {total} time{'s' if total > 1 else ''}, with {no_effect} input{'s' if no_effect > 1 else ''} having no effect on gameplay."
+
+            summary_lines.append(line)
+
+        summary_text = "\n".join(summary_lines)
+        logger.info(f"Logical analysis actions summary: {summary_text}")
+        return summary_text
 
     def generate_video_from_grids(
         self,
