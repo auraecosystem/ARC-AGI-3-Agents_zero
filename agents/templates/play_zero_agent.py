@@ -79,11 +79,11 @@ Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
 
-Pick only 1 winning Multi-Stage Delivery hypothesis with significant win impact on the game.
+Create only 1 goal with significant win impact on the game.
 
-Include element names, description, and approximate size, colors, and shape in the hypothesis. keep the hypothesis targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis.
+Include element names, description, and approximate size, colors, and shape in the goal. keep the goal targeting with "focusing element names" and "final goal". Also remove unsure sentences from the goal.
 
-Hypothesis: """
+Goal: """
 
 RANDOM_HYPOTHESIS_ANALYSIS_PROMPT = """This video is a random actions (WASD and click) moves taken on unkown game.
 
