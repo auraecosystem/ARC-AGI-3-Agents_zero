@@ -1,0 +1,32 @@
+[
+    {
+        "run": {
+            "video_path": "/workspaces/ARC-AGI-3-Agents/recordings/game_analysis_ls20-f340c8e5138e_track1.mp4",
+            "scorecard_file_path": "/workspaces/ARC-AGI-3-Agents/recordings/ls20-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.8aefc1ea-8e65-41ec-9272-a8faff24ddb1.recording.jsonl",
+            "frame_start": 0,
+            "frame_end": 55
+        },
+        "result": {
+            "logical_analysis_actions_summary": "Out of all user inputs recorded during gameplay:\n\n- **W** was used 15 times, with 4 inputs having no effect on gameplay.\n- **A** was used 7 times, and all had an effect on the game.\n- **S** was used 5 times, with 2 inputs having no effect on gameplay.\n- **D** was used 10 times, with 3 inputs having no effect on gameplay.\n- **CLICK** was used 8 times, and all had no effect on the game.",
+            "eval_multiple_hypothesis_result": {},
+            "eval_goal_relevance_result": {},
+            "multiple_hypothesis_text": "",
+            "goal": ""
+        }
+    },
+    {
+        "run": {
+            "video_path": "/workspaces/ARC-AGI-3-Agents/recordings/game_analysis_ls20-f340c8e5138e_track2.mp4",
+            "scorecard_file_path": "/workspaces/ARC-AGI-3-Agents/recordings/ls20-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.fa1f97de-edb6-47c7-98bb-eff9f689d487.recording.jsonl",
+            "frame_start": 0,
+            "frame_end": 55
+        },
+        "result": {
+            "logical_analysis_actions_summary": "Out of all user inputs recorded during gameplay:\n\n- **W** was used 11 times, and all had an effect on the game.\n- **A** was used 8 times, and all had an effect on the game.\n- **S** was used 6 times, with 1 input having no effect on gameplay.\n- **D** was used 6 times, with 1 input having no effect on gameplay.\n- **CLICK** was used 6 times, and all had no effect on the game.",
+            "eval_multiple_hypothesis_result": {},
+            "eval_goal_relevance_result": {},
+            "multiple_hypothesis_text": "",
+            "goal": ""
+        }
+    }
+]
