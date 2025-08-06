@@ -106,11 +106,12 @@ Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
 
-- Write hypothesis clearly with element names clearly
-- Keep the hypothesis targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
+- Write effects clearly with element names clearly
+- Keep the game effects targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
 - element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
+- Give only the game effects that you observed in the video.
 
-Give 10 hypothesise to explore the game and understand its mechanics, objectives, and challenges. 
+Give notified game effects with clear element names. 
 """
 
 GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (before and after), determine whether the goal has been achieved.
