@@ -15,7 +15,7 @@
             "eval_goal_relevance_result": {},
             "multiple_hypothesis_text": "",
             "goal": "",
-            "elements_text": "Elements:\n*   (16x15 grid)Dark_Gray_Playfield\n*   (2x2 grid)White_L-Block_Player_Piece\n*   (Variable size)Medium_Gray_Level_Geometry_Walls\n*   (1x2 grid)Orange_and_Blue_Stacked_Movable_Block\n*   (3x3 grid)Black_Goal_Area_with_Blue_Dot_and_White_Internal_Blocks\n*   (2x2 grid)White_L-Shape_with_Blue_Pixel_Static_Obstacle\n*   (13x1 grid)Purple_and_Gray_Progress_Indicators (top bar)\n*   (3x1 grid)Red_and_Gray_Attempt_Indicators (top right)\n*   (13x1 grid)Gray_Dashed_Line_UI_Element (bottom bar)"
+            "elements_text": "Here's a detailed list of the elements visible in the game, following your requested format:\n\nElements:\n*   **(25x20grid)Dark_Grey_Background**\n*   **(18x15grid)Light_Grey_Play_Area** (The main interactive map)\n*   **(2x2grid)White_L-Shaped_Player_Character_with_Blue_Dot**\n*   **(2x3grid)Blue_Movable_Block_with_Orange_Top**\n*   **(3x3grid)Black_Target_Area_with_White_Shape_and_Blue_Dot** (The goal for the movable block)\n*   **(2x2grid)White_L-Shaped_Static_Obstacle_with_Blue_Dot** (The immovable L-shape in the middle)\n*   **(2x4grid)Dark_Grey_Wall_Block** (The fixed rectangular block on the left side)\n*   **(16x1grid)Purple_and_Grey_Progress_Bar** (Top row, purple indicates completed, grey indicates remaining)\n*   **(3x1grid)Red_Game_State_Indicators** (Top right corner, possibly lives or attempts)\n*   **(16x1grid)Grey_Bottom_UI_Bar** (A decorative or functional UI element at the bottom)\n*   **(Full_Screen)Red_Failure_Flash_Effect** (Appears briefly when a level objective is not met, resetting the level)"
         }
     }
 ]

@@ -6,19 +6,24 @@ import os
 import random
 import re
 import textwrap
-from typing import List
-import os
+from collections import deque
 from itertools import cycle
+from typing import List
 
 import cv2
 import numpy as np
 from google import genai
 from google.genai import types
 from google.genai.errors import APIError
-from pydantic import BaseModel
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 from openai import OpenAI
 from PIL import Image, ImageDraw, ImageFont
+from pydantic import BaseModel
+from tenacity import (
+    retry,
+    retry_if_exception_type,
+    stop_after_attempt,
+    wait_exponential,
+)
 
 from agents.structs import FrameData, GameAction, GameState
 from agents.templates.reasoning_agent import ReasoningLLM
@@ -71,18 +76,13 @@ Generate a detailed, understandable title of the elements in the game.
 Elements:"""
 
 
-TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Can you generate a goal to find Hidden state or theory of mind or do long term planning or navigating, etc.
-
-Game observation of past few moves
+TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Pick one hypothesis which has key impact in win as soon as possible in less moves
 
 {multiple_hypothesis_text}
 
-Logical Analysis Actions Summary:
-{logical_analysis_actions_summary}
+Hypothesis: """
 
-Goal: """
-
-RANDOM_HYPOTHESIS_ANALYSIS_PROMPT = """This video is a random actions (WASD and click) moves taken on unkown game.
+RANDOM_HYPOTHESIS_ANALYSIS_PROMPT = """You are playing a 2D grid game. This video is a random actions (WASD and click) moves taken on unkown game by you.
 
 The game is designed based on below Constraints
 - Easy for humans (can pick it up in <1 min of game play)
@@ -103,12 +103,14 @@ Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
 
-- Write effects clearly with element names clearly
-- Keep the game effects targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
-- element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
-- Give only the game effects that you observed in the video.
+Elements:
+{elements_text}
 
-Give notified game effects with clear element names. 
+
+- Now you need to write hypothesis clearly with element names clearly
+- Keep the hypothesis targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
+
+Give 3 to 10 hypotheses to explore the game and understand its mechanics, objectives, and challenges.
 """
 
 GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (before and after), determine whether the goal has been achieved.
@@ -182,7 +184,7 @@ class GameContext(BaseModel):
     goal: str = ""
     goal_actions_count : int = 0
     max_goal_actions_limit: int
-    elements_description: str = "No elements description available yet."
+    elements_text: str = "No elements description available yet."
     hints: str = "No hints available yet."
     multiple_hypothesis_text: str = "No hypotheses available yet."
     logical_analysis_actions_summary: str = "No logical analysis actions summary available yet."
@@ -194,6 +196,7 @@ class PlayZeroAgent(ReasoningLLM):
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-flash"
     HINT_GENERATOR_MODEL = "gemini-2.5-flash"
+    ELEMENTS_TITLE_GENERATOR_MODEL = "gemini-2.5-flash" 
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-flash"
     RANDOM_ACTION_MAX_LIMIT = 30
     RANDOM_ANALYSIS_FPS = 1
@@ -286,19 +289,42 @@ class PlayZeroAgent(ReasoningLLM):
     def choose_random_action(
         self, frames: list[FrameData], latest_frame: FrameData
     ) -> GameAction:
+        # Store past positions as an attribute on the object
+        if not hasattr(self, "_used_positions"):
+            self._used_positions = set()
 
-        action = random.choice([a for a in GameAction if a is not GameAction.RESET])
+        # Check if frame changed — if so, clear history
+        if not self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame):
+            self._used_positions.clear()
+
+        action = GameAction.ACTION6
 
         if action.is_complex():
+            xy_positions = self.find_shape_positions(latest_frame.frame[0])
+
+            # Filter out positions we've already used for this unchanged frame
+            available_positions = [
+                pos for pos in xy_positions if pos not in self._used_positions
+            ]
+
+            # If all positions were used, reset available list
+            if not available_positions:
+                available_positions = xy_positions
+                self._used_positions.clear()
+
+            xy_position = random.choice(available_positions)
+            self._used_positions.add(xy_position)
+
             action.set_data(
                 {
-                    "x": random.randint(0, 63),
-                    "y": random.randint(0, 63),
+                    "x": xy_position[0],
+                    "y": xy_position[1],
                 }
             )
+
         action.reasoning = {
             "desired_action": f"{action.value}",
-            "reason": "Randomly chosen action"
+            "reason": "Randomly chosen action without repeating past positions for unchanged frames"
         }
         return action
     
@@ -393,7 +419,7 @@ class PlayZeroAgent(ReasoningLLM):
             goal=top_hypothesis,
             goal_actions_count=0,
             max_goal_actions_limit=10,
-            elements_description="No elements description available yet.",
+            elements_text="No elements description available yet.",
             hints=hints,
             multiple_hypothesis_text=multiple_hypothesis_text,
             logical_analysis_actions_summary=logical_analysis_actions_summary,
@@ -403,7 +429,7 @@ class PlayZeroAgent(ReasoningLLM):
         """Retrieve the top hypothesis from the random analysis response."""
         prompt = TOP_HYPOTHESIS_RETRIEVER_PROMPT.format(
             multiple_hypothesis_text=multiple_hypothesis_text,
-            logical_analysis_actions_summary=logical_analysis_actions_summary,
+            # logical_analysis_actions_summary=logical_analysis_actions_summary,
         )
         messages = [
             {
@@ -428,7 +454,10 @@ class PlayZeroAgent(ReasoningLLM):
         return top_hypothesis
 
     def generate_multiple_random_hypothesis_from_video(
-        self, video_file_path: str, logical_analysis_actions_summary: str
+        self,
+        video_file_path: str,
+        logical_analysis_actions_summary: str,
+        elements_text: str,
     ) -> str:
         """Generate random hypothesis analysis from a video file."""
         logger.info(f"Generating random hypothesis analysis from video: {video_file_path}")
@@ -444,9 +473,11 @@ class PlayZeroAgent(ReasoningLLM):
                     types.Part(
                         inline_data=types.Blob(data=video_bytes, mime_type='video/mp4')
                     ),
-                    types.Part(text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT.format(
-                        logical_analysis_actions_summary=logical_analysis_actions_summary,
-                    )
+                    types.Part(
+                            text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT.format(
+                            logical_analysis_actions_summary=logical_analysis_actions_summary,
+                            elements_text=elements_text,
+                        )
                     )
                 ]
             )
@@ -491,18 +522,18 @@ class PlayZeroAgent(ReasoningLLM):
         return hints
 
 
-    def generate_elements_description_from_video(
-        self, video_file_path: str, logical_analysis_actions_summary: str
+    def generate_element_titles_from_video(
+        self, video_file_path: str
     ) -> str:
-        """Generate element descriptions from a video file."""
-        logger.info(f"Generating element descriptions from video: {video_file_path}")
+        """Generate element titles from a video file."""
+        logger.info(f"Generating element titles from video: {video_file_path}")
         if not os.path.exists(video_file_path):
             logger.error(f"Video file does not exist: {video_file_path}")
             return "Analysis not yet done."
         video_bytes = open(video_file_path, 'rb').read()
 
-        hint_chat_response = self.generate_content_using_gemini(
-            model=self.HINT_GENERATOR_MODEL,
+        elements_text_chat_response = self.generate_content_using_gemini(
+            model=self.ELEMENTS_TITLE_GENERATOR_MODEL,
             contents=types.Content(
                 parts=[
                     types.Part(
@@ -512,13 +543,13 @@ class PlayZeroAgent(ReasoningLLM):
                 ]
             )
         )
-        
-        hints = hint_chat_response.text.strip()
+
+        elements_text = elements_text_chat_response.text.strip()
         self.track_tokens(
-            hint_chat_response.usage_metadata.total_token_count, hint_chat_response.text
+            elements_text_chat_response.usage_metadata.total_token_count, elements_text_chat_response.text
         )
-        logger.info(f"Hints generated: {hints}")
-        return hints
+        logger.info(f"Elements title generated: {elements_text}")
+        return elements_text
 
     def generate_next_action(
         self,
@@ -946,3 +977,31 @@ class PlayZeroAgent(ReasoningLLM):
         pattern = r"```json\s*(\{.*?\})\s*```"
         match = re.search(pattern, markdown_text, re.DOTALL)
         return match.group(1).strip() if match else ""
+
+    def find_shape_positions(self, grid):
+        rows, cols = len(grid), len(grid[0])
+        visited = [[False] * cols for _ in range(rows)]
+        positions = []
+        
+        def bfs(start_r, start_c):
+            """Mark all cells in the same connected shape."""
+            val = grid[start_r][start_c]
+            q = deque([(start_r, start_c)])
+            visited[start_r][start_c] = True
+            
+            while q:
+                r, c = q.popleft()
+                for dr, dc in [(1,0), (-1,0), (0,1), (0,-1)]:
+                    nr, nc = r + dr, c + dc
+                    if 0 <= nr < rows and 0 <= nc < cols:
+                        if not visited[nr][nc] and grid[nr][nc] == val:
+                            visited[nr][nc] = True
+                            q.append((nr, nc))
+        
+        for r in range(rows):
+            for c in range(cols):
+                if not visited[r][c]:
+                    bfs(r, c)
+                    positions.append((c, r))  # one representative per shape
+        
+        return positions
