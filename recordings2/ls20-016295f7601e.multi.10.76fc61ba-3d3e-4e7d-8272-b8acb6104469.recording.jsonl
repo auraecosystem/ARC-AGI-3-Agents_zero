@@ -1,4 +1,0 @@
-{"timestamp": "2025-07-24T09:16:32.141997+00:00", "data": {"game_id": "", "frame": [], "state": "NOT_PLAYED", "score": 0, "action_input": {"id": 0, "data": {}, "reasoning": null}, "guid": null, "full_reset": false}}
-{"timestamp": "2025-07-24T09:16:57.841242+00:00", "data": {"game_id": "", "frame": [], "state": "NOT_PLAYED", "score": 0, "action_input": {"id": 0, "data": {}, "reasoning": null}, "guid": null, "full_reset": false}}
-{"timestamp": "2025-07-24T09:17:17.056467+00:00", "data": {"game_id": "", "frame": [], "state": "NOT_PLAYED", "score": 0, "action_input": {"id": 0, "data": {}, "reasoning": null}, "guid": null, "full_reset": false}}
-{"timestamp": "2025-07-24T09:17:25.939098+00:00", "data": {"ls20-016295f7601e": {"game_id": "ls20-016295f7601e", "total_plays": 1, "scores": [0], "states": ["NOT_FINISHED"], "actions": [3], "resets": [0]}}}

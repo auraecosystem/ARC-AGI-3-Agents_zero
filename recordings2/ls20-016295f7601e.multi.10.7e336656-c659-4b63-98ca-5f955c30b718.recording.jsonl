@@ -1,2 +1,0 @@
-{"timestamp": "2025-07-24T06:46:14.297905+00:00", "data": {"game_id": "", "frame": [], "state": "NOT_PLAYED", "score": 0, "action_input": {"id": 0, "data": {}, "reasoning": null}, "guid": null, "full_reset": false}}
-{"timestamp": "2025-07-24T06:46:29.829930+00:00", "data": {"ls20-016295f7601e": {"game_id": "ls20-016295f7601e", "total_plays": 1, "scores": [0], "states": ["NOT_FINISHED"], "actions": [3], "resets": [0]}}}
