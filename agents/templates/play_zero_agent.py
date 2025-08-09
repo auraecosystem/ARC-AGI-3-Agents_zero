@@ -914,6 +914,7 @@ class PlayZeroAgent(ReasoningLLM):
                 color_image = palette[grid_array]  # shape: (H, W, 3)
                 scaled_image = cv2.resize(color_image, frame_size, interpolation=cv2.INTER_NEAREST)
                 video.write(scaled_image)
+                video.write(scaled_image)
 
         video.release()
         return effective_frames
