@@ -44,7 +44,21 @@ uv run main.py --agent=playzeroagent
 
 For more information, see the [documentation](https://three.arcprize.org/docs#quick-start) or the [tutorial video](https://youtu.be/xEVg9dcJMkw).
 
+## Architecture
 
+### Play Zero Agent
+
+**Steps**
+- Random play (do random probability after a threshold of actions met)
+- Generate the title for the unkown game using game random play
+- Do analysis and create goal with max actions limit
+- Loop to achieve goal
+- If achieved or not achieved, do game analysis and create goal and iterate
+
+**Challenges**
+- We need to notify the score increase
+- event chain is not working
+- iterate the 
 
 ## License
 
