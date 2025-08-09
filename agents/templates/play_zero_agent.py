@@ -292,27 +292,38 @@ class PlayZeroAgent(ReasoningLLM):
         # Store past positions as an attribute on the object
         if not hasattr(self, "_used_positions"):
             self._used_positions = set()
+        if not hasattr(self, "_useful_positions"):
+            self._useful_positions = set()
 
+        if self.previous_action.is_complex():
+            previous_xy_position = (self.previous_action.action_data.x, self.previous_action.action_data.y)
+        else:
+            previous_xy_position = None
         # Check if frame changed — if so, clear history
         if not self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame):
             self._used_positions.clear()
+            if previous_xy_position and previous_xy_position in self._used_positions:
+                self._useful_positions.remove(previous_xy_position)
+        else:
+            if previous_xy_position:
+                self._useful_positions.add(previous_xy_position)
 
         action = GameAction.ACTION6
 
         if action.is_complex():
-            xy_positions = self.find_shape_positions(latest_frame.frame[0])
+            xy_positions = set(self.find_shape_positions(latest_frame.frame[0]))
 
             # Filter out positions we've already used for this unchanged frame
-            available_positions = [
+            available_positions = {
                 pos for pos in xy_positions if pos not in self._used_positions
-            ]
+            }
 
             # If all positions were used, reset available list
             if not available_positions:
                 available_positions = xy_positions
                 self._used_positions.clear()
 
-            xy_position = random.choice(available_positions)
+            xy_position = random.choice(list(available_positions) + list(self._useful_positions))
             self._used_positions.add(xy_position)
 
             action.set_data(
