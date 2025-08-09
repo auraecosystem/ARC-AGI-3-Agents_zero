@@ -8,7 +8,7 @@ import re
 import textwrap
 from collections import deque
 from itertools import cycle
-from typing import List
+from typing import Dict, List
 
 import cv2
 import numpy as np
@@ -199,6 +199,7 @@ class PlayZeroAgent(ReasoningLLM):
     ELEMENTS_TITLE_GENERATOR_MODEL = "gemini-2.5-flash" 
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-flash"
     RANDOM_ACTION_MAX_LIMIT = 30
+    RANDOM_PROB_ENABLE_ACTION_MIN_LIMIT = 100
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
 
@@ -289,26 +290,37 @@ class PlayZeroAgent(ReasoningLLM):
     def choose_random_action(
         self, frames: list[FrameData], latest_frame: FrameData
     ) -> GameAction:
+        action = random.choice([a for a in GameAction if a is not GameAction.RESET])
+
         # Store past positions as an attribute on the object
         if not hasattr(self, "_used_positions"):
             self._used_positions = set()
         if not hasattr(self, "_useful_positions"):
             self._useful_positions = set()
+        if not hasattr(self, "original_total_random_actions_count"):
+            self.original_total_random_actions_count = 0
+
+        if self.original_total_random_actions_count > self.RANDOM_PROB_ENABLE_ACTION_MIN_LIMIT:
+            total_action_counts, no_effect_actions = self.count_actions(frames)
+            probabilities_for_actions = self.calculate_effect_probabilities(total_action_counts, no_effect_actions)
+            # choose top 1
+            top_action = max(probabilities_for_actions, key=probabilities_for_actions.get)
+            logger.info(f"Top action with effect: {top_action} (Probability: {probabilities_for_actions[top_action]})")
+            action = self.convert_action_text_to_game_action(top_action)
 
         if self.previous_action.is_complex():
             previous_xy_position = (self.previous_action.action_data.x, self.previous_action.action_data.y)
         else:
             previous_xy_position = None
         # Check if frame changed — if so, clear history
-        if not self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame):
-            self._used_positions.clear()
-            if previous_xy_position and previous_xy_position in self._used_positions:
+        
+        if self.is_frames_equal(frames[-2] if len(frames) > 1 else latest_frame, latest_frame):
+            if previous_xy_position and previous_xy_position in self._useful_positions:
                 self._useful_positions.remove(previous_xy_position)
         else:
+            self._used_positions.clear()
             if previous_xy_position:
                 self._useful_positions.add(previous_xy_position)
-
-        action = GameAction.ACTION6
 
         if action.is_complex():
             xy_positions = set(self.find_shape_positions(latest_frame.frame[0]))
@@ -335,8 +347,11 @@ class PlayZeroAgent(ReasoningLLM):
 
         action.reasoning = {
             "desired_action": f"{action.value}",
-            "reason": "Randomly chosen action without repeating past positions for unchanged frames"
+            "reason": "Randomly chosen action without repeating past positions for unchanged frames",
+            "useful_positions": list(self._useful_positions),
+            "used_positions": list(self._used_positions),
         }
+        self.original_total_random_actions_count += 1
         return action
     
     def choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
@@ -731,8 +746,11 @@ class PlayZeroAgent(ReasoningLLM):
             action = GameAction.ACTION5
         elif action_text == "RESET":
             action = GameAction.RESET
-        elif action_text.startswith("CLICK(") and action_text.endswith(")"):
-            coords = action_text[6:-1].split(",")
+        elif action_text.startswith("CLICK"):
+            if not(action_text.startswith("CLICK") and action_text.endswith(")")):
+                coords = [0, 0]
+            else:
+                coords = action_text[6:-1].split(",")
             if len(coords) == 2:
                 x, y = map(int, coords)
                 action = GameAction.ACTION6
@@ -774,29 +792,24 @@ class PlayZeroAgent(ReasoningLLM):
             logger.warning(f"Unknown GameAction: {action}")
             return "UNKNOWN"
 
-    def generate_logical_analysis_summary(self, frames: List[FrameData]) -> str:
-        """Generate a detailed, human-readable summary of logical analysis actions taken in the game."""
-        if not frames:
-            return "No frames available for logical analysis."
+    def calculate_effect_probabilities(self, total_actions: Dict[str, int], no_effect_actions: Dict[str, int]) -> Dict[str, float]:
+        """Calculate the probability that each action has an effect on gameplay."""
+        probabilities = {}
+        for action in total_actions:
+            if action in ["RESET", "F"]:  # Ignore irrelevant actions
+                continue
+            total = total_actions[action]
+            if total == 0:
+                probabilities[action] = 0.0
+            else:
+                effective_count = total - no_effect_actions[action]
+                probabilities[action] = effective_count / total
+        return probabilities
 
-        total_action_counts = {
-            "W": 0,
-            "A": 0,
-            "S": 0,
-            "D": 0,
-            "F": 0,      # Assuming F is another action
-            "CLICK": 0,
-            "RESET": 0,  # Will be excluded later
-        }
-        no_effect_actions = {
-            "W": 0,
-            "A": 0,
-            "S": 0,
-            "D": 0,
-            "F": 0,
-            "CLICK": 0,
-            "RESET": 0,
-        }
+    def count_actions(self, frames: List[FrameData]) -> (Dict[str, int], Dict[str, int]):
+        """Count total actions and no-effect actions from frames."""
+        total_action_counts = {k: 0 for k in ["W", "A", "S", "D", "F", "CLICK", "RESET"]}
+        no_effect_actions = {k: 0 for k in ["W", "A", "S", "D", "F", "CLICK", "RESET"]}
 
         prev_frame = None
         for frame in frames:
@@ -814,6 +827,21 @@ class PlayZeroAgent(ReasoningLLM):
                 no_effect_actions[action_text] += 1
             prev_frame = frame
 
+        return total_action_counts, no_effect_actions
+
+
+    def get_actions_with_effect(self, total_actions: Dict[str, int], no_effect_actions: Dict[str, int]) -> Dict[str, int]:
+        """Return actions that had an effect on the game (total - no effect)."""
+        return {action: total_actions[action] - no_effect_actions[action]
+                for action in total_actions if action not in ["RESET", "F"]}
+
+
+    def generate_logical_analysis_summary(self, frames: List[FrameData]) -> str:
+        """Generate a detailed, human-readable summary of logical analysis actions."""
+        if not frames:
+            return "No frames available for logical analysis."
+
+        total_action_counts, no_effect_actions = self.count_actions(frames)
         # Remove non-relevant actions
         for key in ["RESET", "F"]:
             total_action_counts.pop(key, None)
@@ -826,7 +854,7 @@ class PlayZeroAgent(ReasoningLLM):
             no_effect = no_effect_actions[action_text]
 
             if total == 0:
-                continue  # Skip actions that were never used
+                continue
 
             if no_effect == total:
                 line = f"- **{action_text}** was used {total} time{'s' if total > 1 else ''}, and all had no effect on the game."
