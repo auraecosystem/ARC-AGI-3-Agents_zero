@@ -720,7 +720,7 @@ class PlayZeroAgent(ReasoningLLM):
             return False
         if not previous_frame.frame or not current_frame.frame:
             return False
-        previous_grid = previous_frame.frame[0]
+        previous_grid = previous_frame.frame[-1]
         current_grid = current_frame.frame[0]
         if len(previous_grid) != len(current_grid):
             return False
@@ -829,12 +829,10 @@ class PlayZeroAgent(ReasoningLLM):
 
         return total_action_counts, no_effect_actions
 
-
     def get_actions_with_effect(self, total_actions: Dict[str, int], no_effect_actions: Dict[str, int]) -> Dict[str, int]:
         """Return actions that had an effect on the game (total - no effect)."""
         return {action: total_actions[action] - no_effect_actions[action]
                 for action in total_actions if action not in ["RESET", "F"]}
-
 
     def generate_logical_analysis_summary(self, frames: List[FrameData]) -> str:
         """Generate a detailed, human-readable summary of logical analysis actions."""
@@ -876,7 +874,7 @@ class PlayZeroAgent(ReasoningLLM):
         pixel_size=10,
         fps=10,
         skip_repeated_frames=False,
-    ) -> None:
+    ) -> list[FrameData]:
         # === Color palette (from key_colors as hex) ===
         key_colors = {
             0: "#FFFFFF", 1: "#CCCCCC", 2: "#999999", 3: "#666666",
@@ -892,22 +890,25 @@ class PlayZeroAgent(ReasoningLLM):
         )
 
         # === Determine frame size from first frame ===
-        first_grid = frames[-1].frame[0]
+        # select frame_data which has frames
+        frame_data = [frame for frame in frames if len(frame.frame) > 0][0]
+        first_grid = frame_data.frame[0]
         h, w = len(first_grid), len(first_grid[0])
         frame_size = (w * pixel_size, h * pixel_size)
 
         # === Setup video writer ===
         fourcc = cv2.VideoWriter_fourcc(*"mp4v")
         video = cv2.VideoWriter(video_output_path, fourcc, fps, frame_size)
+        effective_frames : list[tuple[GameAction, int]] = []
 
         # === Frame processing loop with deduplication ===
-        prev_frame = None
-        for frame in frames:
+        prev_frame = frames[0]
+        for frame in frames[1:]:
             if skip_repeated_frames and self.is_frames_equal(prev_frame, frame):
                 logger.debug("Skipping duplicate frame")
                 continue  # Skip duplicate frame
+            effective_frames.append(prev_frame)
             prev_frame = frame
-
             for grid in frame.frame:
                 grid_array = np.array(grid, dtype=np.uint8)
                 color_image = palette[grid_array]  # shape: (H, W, 3)
@@ -915,6 +916,7 @@ class PlayZeroAgent(ReasoningLLM):
                 video.write(scaled_image)
 
         video.release()
+        return effective_frames
 
     def generate_grid_image_with_zone(
         self, grid: List[List[int]], cell_size: int = 40, zone_size: int = 20
