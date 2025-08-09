@@ -1046,3 +1046,25 @@ class PlayZeroAgent(ReasoningLLM):
                     positions.append((c, r))  # one representative per shape
         
         return positions
+
+
+    def get_color_for_cell_value(self, cell_value: int) -> str:
+        key_colors_named = {
+            0: "White",
+            1: "Light Gray",
+            2: "Medium Gray",
+            3: "Dark Gray",
+            4: "Very Dark Gray",
+            5: "Black",
+            6: "Magenta / Pink",
+            7: "Light Pink",
+            8: "Bright Red",
+            9: "Bright Blue",
+            10: "Sky Blue",
+            11: "Bright Yellow",
+            12: "Orange",
+            13: "Dark Red / Maroon",
+            14: "Bright Green",
+            15: "Purple"
+        }
+        return key_colors_named.get(cell_value, "")
