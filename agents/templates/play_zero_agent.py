@@ -218,7 +218,7 @@ class PlayZeroAgent(ReasoningLLM):
     RANDOM_PROB_ENABLE_ACTION_MIN_LIMIT = 100
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
-    MAX_GOAL_ACTIONS = 50
+    MAX_GOAL_ACTIONS = 20
     DEFAULT_MAX_ACTIONS = 20
 
     # in random choice, trigger one action based on probablity effect on game board in inerval of 20 moves,
