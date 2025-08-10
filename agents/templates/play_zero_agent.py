@@ -388,8 +388,12 @@ class PlayZeroAgent(ReasoningLLM):
             self.original_total_random_actions_count = 0
 
         self.past_score = latest_frame.score
-
-        action = self._choose_action(frames, latest_frame)
+        try:
+            action = self._choose_action(frames, latest_frame)
+        except Exception:
+            action = self.choose_random_action(frames, latest_frame)
+            action.reasoning["reason"] = "Some unexpected error happened while taking action."
+            logger.exception("Error while choosing action, falling back to random action.")
         action.reasoning = action.reasoning or {}
         game_context_dict = self.game_context.model_dump()
         action.reasoning.update(game_context_dict)
@@ -1274,8 +1278,13 @@ class PlayZeroAgent(ReasoningLLM):
     ) -> str:
         summary_lines = []
         for i in range(len(frames) - 1):
-            diff = self.summarize_frame_diff(frames[i], frames[i + 1])
-            notes = self.get_action_note(frames[i], frames[i + 1])
+            previous_frame = frames[i]
+            current_frame = frames[i + 1]
+            if not previous_frame.frame or not current_frame.frame:
+                continue
+
+            diff = self.summarize_frame_diff(previous_frame, current_frame)
+            notes = self.get_action_note(previous_frame, current_frame)
             summary_lines.extend(f"When action {notes} on frame {i}:\n the below changes occurred in frame {i + 1}:\n" + diff)
         summary_lines_text = "\n".join(summary_lines)
         logger.info(f"Summary diff generated: {summary_lines_text}")
