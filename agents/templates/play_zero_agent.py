@@ -207,7 +207,7 @@ class GameContext(BaseModel):
 
 class PlayZeroAgent(ReasoningLLM):
     MODEL = "gemini-2.5-flash"
-    MAX_ACTIONS = 1500
+    MAX_ACTIONS = 2500
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
@@ -1266,6 +1266,7 @@ class PlayZeroAgent(ReasoningLLM):
             if not frame.action_input.reasoning:
                 continue
             notes = self.get_action_note(prev_frame, frame)
+            prev_frame = frame
             
             event_chain.append(notes)
         event_chain_text = "\n".join(event_chain)
