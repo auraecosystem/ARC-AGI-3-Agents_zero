@@ -29,7 +29,7 @@ export ARC_API_KEY="your_api_key_here"
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
-Iy you face rate limit error, you can two more api key from multiple accounts
+Iy you face rate limit error, you can 5 more api key from multiple accounts
 
 ```
 GEMINI_API_KEY_1=
@@ -39,7 +39,11 @@ GEMINI_API_KEY_4=
 GEMINI_API_KEY_5=
 ```
 
-Recommeded way is use three gemini api from three accounts.
+Recommeded way is use 6 gemini api from 6 accounts for 6 games to play concurrently.
+
+Also,
+3 api key is recommeded to play 3 games concurrently.
+1 api key will be enough, if you have higher gemini pla
 
 5. Run the playzero agent (generates random actions) against all the games.
 
