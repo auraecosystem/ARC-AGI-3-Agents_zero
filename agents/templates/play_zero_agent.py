@@ -76,7 +76,7 @@ Generate a detailed, understandable title of the elements in the game.
 Elements:"""
 
 
-TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Synthesize a simple goal which has key impact in win as soon as possible in less actions using the below hypotheses.
+TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Synthesize a win goal which has win impact in win as soon as possible in less actions using the below hypotheses.
 
 Don't mention about hypotheses in goal, it should be standalone
 
@@ -109,6 +109,7 @@ Sometimes, some actions has no effect.
 Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
+{summary_diff_for_multiple_frames}
 
 Sometimes, some actions has no effect. 
 
@@ -461,13 +462,17 @@ class PlayZeroAgent(ReasoningLLM):
             fps=self.RANDOM_ANALYSIS_FPS,
             skip_repeated_frames=self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG,
         )
+        summary_diff_for_multiple_frames = self.create_summary_diff_for_multiple_frames(effective_frames)
         effective_actions_chain = self.generate_event_chain(effective_frames)
         logger.info(f"Video saved to {video_file_path}")
         logical_analysis_actions_summary = self.generate_logical_analysis_summary(filtered_frames)
 
         multiple_hypothesis_text = self.generate_multiple_random_hypotheses_from_video(
-            video_file_path, logical_analysis_actions_summary
+            video_file_path,
+            logical_analysis_actions_summary,
+            summary_diff_for_multiple_frames,
         )
+
 
         top_hypothesis_json = self.generate_top_hypothesis(
             multiple_hypothesis_text=multiple_hypothesis_text,
@@ -528,12 +533,13 @@ class PlayZeroAgent(ReasoningLLM):
         self.capture_reasoning_from_response(response)
 
         logger.info(f"Top hypothesis retrieved: {top_hypothesis}")
-        return top_hypothesis
+        return top_hypothesis_json
 
     def generate_multiple_random_hypotheses_from_video(
         self,
         video_file_path: str,
         logical_analysis_actions_summary: str,
+        summary_diff_for_multiple_frames: str,
     ) -> str:
         """Generate random hypothesis analysis from a video file."""
         logger.info(f"Generating random hypothesis analysis from video: {video_file_path}")
@@ -552,6 +558,7 @@ class PlayZeroAgent(ReasoningLLM):
                     types.Part(
                             text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT.format(
                             logical_analysis_actions_summary=logical_analysis_actions_summary,
+                            summary_diff_for_multiple_frames=summary_diff_for_multiple_frames,
                         )
                     )
                 ]
@@ -1154,33 +1161,44 @@ class PlayZeroAgent(ReasoningLLM):
         ]
         return summary_lines
 
+    def get_action_note(
+        self,
+        previous_frame: FrameData,
+        latest_frame: FrameData,
+    ) -> str:
+        game_action = latest_frame.action_input.id
+        if game_action.is_complex():
+            x = latest_frame.action_input.id.action_data.x
+            y = latest_frame.action_input.id.action_data.y
+        
+            cell_value = previous_frame.frame[-1][y][x]
+            color = self.get_color_for_cell_value(cell_value)
+            if color:
+                frame_event = self.convert_game_action_to_text(game_action)
+                notes = f"{frame_event}{color} cell. This has effect in game"
+        else:
+            action_text = self.convert_game_action_to_text(game_action)
+            notes = f"Taking {action_text} action"
+        return notes
+
     def generate_event_chain(self, effective_frames: list[FrameData]) -> str:
-        count = 0
         event_chain = []
         prev_frame = effective_frames[0]
         for frame in effective_frames:
             if not frame.action_input.reasoning:
                 continue
-            game_action = frame.action_input.id
-            frame_count = len(frame.frame)
-            if game_action.is_complex():
-                x = frame.action_input.data["x"]
-                y = frame.action_input.data["y"]
-                game_action.set_data(
-                    {
-                        "x": x,
-                        "y": y,
-                    }
-                )
+            notes = self.get_action_note(prev_frame, frame)
             
-                cell_value = prev_frame.frame[-1][y][x]
-                color = self.get_color_for_cell_value(cell_value)
-                if color:
-                    frame_event = self.convert_game_action_to_text(game_action)
-                    notes = f"{frame_event}{color} cell. This has effect in game"
-            else:
-                action_text = self.convert_game_action_to_text(game_action)
-                notes = f"Taking {action_text} action"
             event_chain.append(notes)
-            count += frame_count
         return "\n".join(event_chain)
+
+    def create_summary_diff_for_multiple_frames(
+        frames: list[FrameData],
+        self,
+    ) -> str:
+        summary_lines = []
+        for i in range(len(frames) - 1):
+            diff = self.summarize_frame_diff(frames[i], frames[i + 1])
+            notes = self.get_action_note(frames[i], frames[i + 1])
+            summary_lines.extend(f"When action {notes} on frame {i}:\n the below changes occurred in frame {i + 1}:\n" + diff)
+        return "\n".join(summary_lines)
