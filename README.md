@@ -34,6 +34,9 @@ Iy you face rate limit error, you can two more api key from multiple accounts
 ```
 GEMINI_API_KEY_1=
 GEMINI_API_KEY_2=
+GEMINI_API_KEY_3=
+GEMINI_API_KEY_4=
+GEMINI_API_KEY_5=
 ```
 
 5. Run the playzero agent (generates random actions) against all the games.
