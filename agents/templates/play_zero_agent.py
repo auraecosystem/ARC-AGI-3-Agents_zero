@@ -1193,8 +1193,8 @@ class PlayZeroAgent(ReasoningLLM):
         return "\n".join(event_chain)
 
     def create_summary_diff_for_multiple_frames(
-        frames: list[FrameData],
         self,
+        frames: list[FrameData],
     ) -> str:
         summary_lines = []
         for i in range(len(frames) - 1):
