@@ -60,6 +60,9 @@ Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
 
+Some past hints on game play
+{past_hints}
+
 - Write hints clearly with element names clearly
 - Keep the hints targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hints."
 - element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
@@ -481,6 +484,7 @@ class PlayZeroAgent(ReasoningLLM):
         hints = self.generate_hints_from_video(
             video_file_path,
             logical_analysis_actions_summary,
+            past_hints=self.game_context.hints,
         )
 
         return GameContext(
@@ -573,7 +577,7 @@ class PlayZeroAgent(ReasoningLLM):
         return all_random_hypothesis_text
 
     def generate_hints_from_video(
-        self, video_file_path: str, logical_analysis_actions_summary: str
+        self, video_file_path: str, logical_analysis_actions_summary: str, past_hints: str,
     ) -> str:
         """Generate hints from a video file."""
         logger.info(f"Generating hints from video: {video_file_path}")
@@ -591,6 +595,7 @@ class PlayZeroAgent(ReasoningLLM):
                     ),
                     types.Part(text=HINTS_GENERATOR_PROMPT.format(
                         logical_analysis_actions_summary=logical_analysis_actions_summary,
+                        past_hints=past_hints,
                     ))
                 ]
             )
@@ -1198,7 +1203,7 @@ class PlayZeroAgent(ReasoningLLM):
     ) -> str:
         summary_lines = []
         for i in range(len(frames) - 1):
-            diff = self.summarize_frame_diff(frames[i], frames[i + 1])
+            diff = "\n".join(self.summarize_frame_diff(frames[i], frames[i + 1]))
             notes = self.get_action_note(frames[i], frames[i + 1])
             summary_lines.extend(f"When action {notes} on frame {i}:\n the below changes occurred in frame {i + 1}:\n" + diff)
         return "\n".join(summary_lines)
