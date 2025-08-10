@@ -190,7 +190,7 @@ class GameContext(BaseModel):
 
 class PlayZeroAgent(ReasoningLLM):
     MODEL = "gemini-2.5-flash"
-    MAX_ACTIONS = 500
+    MAX_ACTIONS = 750
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
