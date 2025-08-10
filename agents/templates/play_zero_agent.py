@@ -478,7 +478,8 @@ class PlayZeroAgent(ReasoningLLM):
         )
         top_hypothesis = response.choices[0].message.content.strip()
         try:
-            top_hypothesis_json = json.loads(top_hypothesis)
+            top_hypothesis_extracted = self.extract_first_json_block(top_hypothesis)
+            top_hypothesis_json = json.loads(top_hypothesis_extracted)
         except json.JSONDecodeError:
             logger.error(f"Failed to parse top hypothesis as JSON: {top_hypothesis}")
             top_hypothesis_json = {
