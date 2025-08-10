@@ -103,14 +103,13 @@ Random Analysis Actions summary
 This is a summary of the random analysis actions taken in the game.
 {logical_analysis_actions_summary}
 
-Elements:
-{elements_text}
+Sometimes, some actions has no effect. 
 
-
-- Now you need to write hypothesis clearly with element names clearly
+- Write hypothesis clearly with element names clearly
 - Keep the hypothesis targeting with "focusing element names" and "final goal". Also remove unsure sentences from the hypothesis."
+- element name must be clearly mentioned with approximate size, colors and shape. [Example: (16x15grid)Red_Square_Block]
 
-Give 3 to 10 hypotheses to explore the game and understand its mechanics, objectives, and challenges.
+Give 10 hypothesise to explore the game and understand its mechanics, objectives, and challenges. 
 """
 
 GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (before and after), determine whether the goal has been achieved.
@@ -428,7 +427,7 @@ class PlayZeroAgent(ReasoningLLM):
         logger.info(f"Video saved to {video_file_path}")
         logical_analysis_actions_summary = self.generate_logical_analysis_summary(frames)
 
-        multiple_hypothesis_text = self.generate_multiple_random_hypothesis_from_video(
+        multiple_hypothesis_text = self.generate_multiple_random_hypotheses_from_video(
             video_file_path, logical_analysis_actions_summary
         )
 
@@ -479,11 +478,10 @@ class PlayZeroAgent(ReasoningLLM):
         logger.info(f"Top hypothesis retrieved: {top_hypothesis}")
         return top_hypothesis
 
-    def generate_multiple_random_hypothesis_from_video(
+    def generate_multiple_random_hypotheses_from_video(
         self,
         video_file_path: str,
         logical_analysis_actions_summary: str,
-        elements_text: str,
     ) -> str:
         """Generate random hypothesis analysis from a video file."""
         logger.info(f"Generating random hypothesis analysis from video: {video_file_path}")
@@ -502,7 +500,6 @@ class PlayZeroAgent(ReasoningLLM):
                     types.Part(
                             text=RANDOM_HYPOTHESIS_ANALYSIS_PROMPT.format(
                             logical_analysis_actions_summary=logical_analysis_actions_summary,
-                            elements_text=elements_text,
                         )
                     )
                 ]

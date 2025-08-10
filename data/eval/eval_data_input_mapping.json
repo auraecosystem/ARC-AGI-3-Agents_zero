@@ -1,0 +1,32 @@
+[
+    {
+        "game_id": "vc33",
+        "game_name": "VALVECHECK",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_vc33-58ec4396715d.mp4",
+        "scorecard_file_path": "data/eval/scorecard/vc33-58ec4396715d.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.2a006cff-de8a-4fbd-ab6e-84b42b4bdac4.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": 55,
+        "expected_goal": "Click red button and blue button and notice the effect"
+    },
+    {
+        "game_id": "ft09",
+        "game_name": "FLIP TILES",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_ft09-f340c8e5138e.mp4",
+        "scorecard_file_path": "data/eval/scorecard/ft09-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.aefc9ae0-a76a-4c55-99eb-4c49816697f9.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": 176,
+        "expected_goal": "Click red button and blue button and notice the effect"
+    },
+    {
+        "game_id": "ls20",
+        "game_name": "LOCKSMITH",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_ls20-f340c8e5138e.mp4",
+        "scorecard_file_path": "data/eval/scorecard/ls20-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.cacb2d6b-6c3c-423c-97a6-9652c9394e4a.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": 54,
+        "expected_goal": "Click red button and blue button and notice the effect"
+    }
+]
