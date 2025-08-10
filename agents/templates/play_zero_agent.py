@@ -6,7 +6,7 @@ import os
 import random
 import re
 import textwrap
-from collections import deque
+from collections import Counter, deque
 from itertools import cycle
 from typing import Dict, List
 
@@ -81,10 +81,11 @@ TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Synthesize a simple goal which has key impa
 Don't mention about hypotheses in goal, it should be standalone
 
 {multiple_hypothesis_text}
-{
+
+{{
 "goal": "<max 100 words>",
 "max_actions_to_achieve": "int"
-}
+}}
 
 """
 
@@ -153,6 +154,8 @@ Hints:
 
 {hints}
 -----
+Here are some past actions that has effect in game
+{effective_actions_chain}
 
 <previous_actions>
 The previous action "{previous_action_text}" had {game_effect_flag} effect in the game.
@@ -193,6 +196,7 @@ class GameContext(BaseModel):
     hints: str = "No hints available yet."
     multiple_hypothesis_text: str = "No hypotheses available yet."
     logical_analysis_actions_summary: str = "No logical analysis actions summary available yet."
+    effective_actions_chain: str = "Not detected any effective actions."
 
 class PlayZeroAgent(ReasoningLLM):
     MODEL = "gemini-2.5-flash"
@@ -251,6 +255,8 @@ class PlayZeroAgent(ReasoningLLM):
             max_goal_actions_limit=self.RANDOM_ACTION_MAX_LIMIT,
         )
         self.random_play_flag: bool = True
+        self.past_score: int = 0
+        self.original_total_random_actions_count : int = 0
 
     @property
     def previous_action_text(self) -> str:
@@ -304,8 +310,6 @@ class PlayZeroAgent(ReasoningLLM):
             self._used_positions = set()
         if not hasattr(self, "_useful_positions"):
             self._useful_positions = set()
-        if not hasattr(self, "original_total_random_actions_count"):
-            self.original_total_random_actions_count = 0
 
         if self.original_total_random_actions_count > self.RANDOM_PROB_ENABLE_ACTION_MIN_LIMIT:
             total_action_counts, no_effect_actions = self.count_actions(frames)
@@ -360,9 +364,23 @@ class PlayZeroAgent(ReasoningLLM):
         }
         self.original_total_random_actions_count += 1
         return action
-    
+
+    def get_game_context_for_random_play(self) -> GameContext:
+        """Get the game context for random play."""
+        game_context = GameContext(**self.game_context.model_dump())
+        game_context.goal_actions_count = 0
+        game_context.max_goal_actions_limit = self.RANDOM_ACTION_MAX_LIMIT
+        return game_context
+
     def choose_action(self, frames: List[FrameData], latest_frame: FrameData) -> GameAction:
         """Choose the next action based on the current game state and frames."""
+        if self.past_score != latest_frame.score:
+            self.random_play_flag = True
+            self.game_context = self.get_game_context_for_random_play()
+            self.original_total_random_actions_count = 0
+
+        self.past_score = latest_frame.score
+
         action = self._choose_action(frames, latest_frame)
         action.reasoning = action.reasoning or {}
         game_context_dict = self.game_context.model_dump()
@@ -392,11 +410,14 @@ class PlayZeroAgent(ReasoningLLM):
                 current_frame=latest_frame,
             )        
         if self.is_max_goal_actions_limit_reached() or is_goal_achieved_flag:
-            logger.info("Maximum goal actions limit reached or goal achieved, performing game analysis.")
-            if self.random_play_flag:
-                self.random_play_flag = False
-            self.game_context = self.do_game_analysis(frames, latest_frame)
-
+            if (not self.random_play_flag) and is_goal_achieved_flag:
+                self.random_play_flag = True
+                self.game_context = self.get_game_context_for_random_play()
+            else:
+                logger.info("Maximum goal actions limit reached or goal achieved, performing game analysis.")
+                if self.random_play_flag:
+                    self.random_play_flag = False
+                self.game_context = self.do_game_analysis(frames, latest_frame)
 
         if self.random_play_flag:
             action = self.choose_random_action(frames, latest_frame)
@@ -418,22 +439,31 @@ class PlayZeroAgent(ReasoningLLM):
 
         return action
 
+    def filter_frames_with_score(
+        self, frames: list[FrameData], score: int
+    ) -> list[FrameData]:
+        """Filter frames based on a minimum score."""
+        logger.info(f"Filtering frames with score: {score}")
+        return [frame for frame in frames if frame.score == score]
+
     def do_game_analysis(
         self, frames: List[FrameData], latest_frame: FrameData
     ) -> GameContext:
         """Perform game analysis and return a summary."""
+        filtered_frames = self.filter_frames_with_score(frames, latest_frame.score)
         logger.info("Performing game analysis on frames...")
         # generate unique file name for video
-        video_file_name = f"game_analysis_{frames[-1].game_id}.mp4"
+        video_file_name = f"game_analysis_{filtered_frames[-1].game_id}.mp4"
         video_file_path = os.path.join("recordings", video_file_name)
-        self.generate_video_from_grids(
-            frames=frames,
+        effective_frames = self.generate_video_from_grids(
+            frames=filtered_frames,
             video_output_path=video_file_path,
             fps=self.RANDOM_ANALYSIS_FPS,
             skip_repeated_frames=self.RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG,
         )
+        effective_actions_chain = self.generate_event_chain(effective_frames)
         logger.info(f"Video saved to {video_file_path}")
-        logical_analysis_actions_summary = self.generate_logical_analysis_summary(frames)
+        logical_analysis_actions_summary = self.generate_logical_analysis_summary(filtered_frames)
 
         multiple_hypothesis_text = self.generate_multiple_random_hypotheses_from_video(
             video_file_path, logical_analysis_actions_summary
@@ -456,6 +486,7 @@ class PlayZeroAgent(ReasoningLLM):
             hints=hints,
             multiple_hypothesis_text=multiple_hypothesis_text,
             logical_analysis_actions_summary=logical_analysis_actions_summary,
+            effective_actions_chain=effective_actions_chain,
         )
     
     def generate_top_hypothesis(self, multiple_hypothesis_text: str, logical_analysis_actions_summary: str) -> dict:
@@ -612,6 +643,7 @@ class PlayZeroAgent(ReasoningLLM):
             previous_action_text=self.previous_action_text,
             previous_action_reason=self.previous_action_reason,
             game_effect_flag=game_effect_flag,
+            effective_actions_chain=self.game_context.effective_actions_chain,
         )
         latest_grid = latest_frame.frame[0] if latest_frame.frame else []
         latest_map_image = self.generate_grid_image_with_zone(latest_grid)
@@ -1094,3 +1126,61 @@ class PlayZeroAgent(ReasoningLLM):
             15: "Purple"
         }
         return key_colors_named.get(cell_value, "")
+
+
+    def summarize_frame_diff(self, previous_frame: FrameData, current_frame: FrameData) -> list[str]:
+        changes = Counter()
+        prev_grid = previous_frame.frame[-1]
+        curr_grid = current_frame.frame[0]
+
+        rows = len(prev_grid)
+        cols = len(prev_grid[0])
+        mid_col = cols // 2  # split left/right halves
+
+        for r in range(rows):
+            for c in range(cols):
+                old_val = prev_grid[r][c]
+                new_val = curr_grid[r][c]
+                if old_val != new_val:
+                    old_color = self.get_color_for_cell_value(old_val)
+                    new_color = self.get_color_for_cell_value(new_val)
+                    side = "left" if c < mid_col else "right"
+                    changes[(old_color, new_color, side)] += 1
+
+        # Turn counts into readable text
+        summary_lines = [
+            f"- {count} {old} cells turned to {new} on {side}"
+            for (old, new, side), count in changes.items()
+        ]
+        return summary_lines
+
+    def generate_event_chain(self, effective_frames: list[FrameData]) -> str:
+        count = 0
+        event_chain = []
+        prev_frame = effective_frames[0]
+        for frame in effective_frames:
+            if not frame.action_input.reasoning:
+                continue
+            game_action = frame.action_input.id
+            frame_count = len(frame.frame)
+            if game_action.is_complex():
+                x = frame.action_input.data["x"]
+                y = frame.action_input.data["y"]
+                game_action.set_data(
+                    {
+                        "x": x,
+                        "y": y,
+                    }
+                )
+            
+                cell_value = prev_frame.frame[-1][y][x]
+                color = self.get_color_for_cell_value(cell_value)
+                if color:
+                    frame_event = self.convert_game_action_to_text(game_action)
+                    notes = f"{frame_event}{color} cell. This has effect in game"
+            else:
+                action_text = self.convert_game_action_to_text(game_action)
+                notes = f"Taking {action_text} action"
+            event_chain.append(notes)
+            count += frame_count
+        return "\n".join(event_chain)
