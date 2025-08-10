@@ -636,6 +636,13 @@ class PlayZeroAgent(ReasoningLLM):
         except json.JSONDecodeError as e:
             logger.error(f"Failed to parse next action response: {e}")
             action_data = {"action": "UNKNOWN", "reason": "Failed to parse response"}
+        if action_data["action"] == "UNKNOWN":
+            action = self.choose_random_action(
+                frames=self.frames,
+                latest_frame=latest_frame
+            )
+            action.reasoning["reason"] = "Failed to parse response in next action, so using random action"
+            return action
         return self.convert_action_text_to_game_action(
             action_text=action_data.get("action", ""),
             reason=action_data.get("reason", "")
@@ -902,9 +909,10 @@ class PlayZeroAgent(ReasoningLLM):
         prev_frame = frames[0]
         for frame in frames[1:]:
             if skip_repeated_frames and self.is_frames_equal(prev_frame, frame):
+                prev_frame = frame
                 logger.debug("Skipping duplicate frame")
                 continue  # Skip duplicate frame
-            effective_frames.append(prev_frame)
+            effective_frames.append(frame)
             prev_frame = frame
             for grid in frame.frame:
                 grid_array = np.array(grid, dtype=np.uint8)
