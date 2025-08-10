@@ -193,7 +193,7 @@ class PlayZeroAgent(ReasoningLLM):
     MAX_ACTIONS = 500
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
-    RANDOM_ANALYSIS_MODEL = "gemini-2.5-flash"
+    RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
     HINT_GENERATOR_MODEL = "gemini-2.5-flash"
     ELEMENTS_TITLE_GENERATOR_MODEL = "gemini-2.5-flash" 
     TOP_HYPOTHESIS_GENERATOR_MODEL = "gemini-2.5-flash"
@@ -910,7 +910,6 @@ class PlayZeroAgent(ReasoningLLM):
                 grid_array = np.array(grid, dtype=np.uint8)
                 color_image = palette[grid_array]  # shape: (H, W, 3)
                 scaled_image = cv2.resize(color_image, frame_size, interpolation=cv2.INTER_NEAREST)
-                video.write(scaled_image)
                 video.write(scaled_image)
 
         video.release()
