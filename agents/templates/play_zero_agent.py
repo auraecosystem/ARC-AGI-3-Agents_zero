@@ -76,11 +76,17 @@ Generate a detailed, understandable title of the elements in the game.
 Elements:"""
 
 
-TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Pick one hypothesis which has key impact in win as soon as possible in less moves
+TOP_HYPOTHESIS_RETRIEVER_PROMPT = """Synthesize a simple goal which has key impact in win as soon as possible in less actions using the below hypotheses.
+
+Don't mention about hypotheses in goal, it should be standalone
 
 {multiple_hypothesis_text}
+{
+"goal": "<max 100 words>",
+"max_actions_to_achieve": "int"
+}
 
-Hypothesis: """
+"""
 
 RANDOM_HYPOTHESIS_ANALYSIS_PROMPT = """You are playing a 2D grid game. This video is a random actions (WASD and click) moves taken on unkown game by you.
 
@@ -201,6 +207,8 @@ class PlayZeroAgent(ReasoningLLM):
     RANDOM_PROB_ENABLE_ACTION_MIN_LIMIT = 100
     RANDOM_ANALYSIS_FPS = 1
     RANDOM_ANALYSIS_SKIP_REPEATED_FRAMES_FLAG = True
+    MAX_GOAL_ACTIONS = 50
+    DEFAULT_MAX_ACTIONS = 20
 
     # in random choice, trigger one action based on probablity effect on game board in inerval of 20 moves,
     # use equal probability initially
@@ -431,7 +439,7 @@ class PlayZeroAgent(ReasoningLLM):
             video_file_path, logical_analysis_actions_summary
         )
 
-        top_hypothesis = self.generate_top_hypothesis(
+        top_hypothesis_json = self.generate_top_hypothesis(
             multiple_hypothesis_text=multiple_hypothesis_text,
             logical_analysis_actions_summary=logical_analysis_actions_summary
         )
@@ -441,16 +449,16 @@ class PlayZeroAgent(ReasoningLLM):
         )
 
         return GameContext(
-            goal=top_hypothesis,
+            goal=top_hypothesis_json["goal"],
             goal_actions_count=0,
-            max_goal_actions_limit=10,
+            max_goal_actions_limit=top_hypothesis_json["max_actions_to_achieve"],
             elements_text="No elements description available yet.",
             hints=hints,
             multiple_hypothesis_text=multiple_hypothesis_text,
             logical_analysis_actions_summary=logical_analysis_actions_summary,
         )
     
-    def generate_top_hypothesis(self, multiple_hypothesis_text: str, logical_analysis_actions_summary: str) -> str:
+    def generate_top_hypothesis(self, multiple_hypothesis_text: str, logical_analysis_actions_summary: str) -> dict:
         """Retrieve the top hypothesis from the random analysis response."""
         prompt = TOP_HYPOTHESIS_RETRIEVER_PROMPT.format(
             multiple_hypothesis_text=multiple_hypothesis_text,
@@ -469,7 +477,19 @@ class PlayZeroAgent(ReasoningLLM):
             # reasoning_effort="low",
         )
         top_hypothesis = response.choices[0].message.content.strip()
-        
+        try:
+            top_hypothesis_json = json.loads(top_hypothesis)
+        except json.JSONDecodeError:
+            logger.error(f"Failed to parse top hypothesis as JSON: {top_hypothesis}")
+            top_hypothesis_json = {
+                "goal": top_hypothesis,
+                "max_actions_to_achieve": self.DEFAULT_MAX_ACTIONS,
+            }
+        if "max_actions_to_achieve" not in top_hypothesis_json:
+            top_hypothesis_json["max_actions_to_achieve"] = self.DEFAULT_MAX_ACTIONS
+        if top_hypothesis_json["max_actions_to_achieve"] > self.MAX_GOAL_ACTIONS:
+            top_hypothesis_json["max_actions_to_achieve"] = self.MAX_GOAL_ACTIONS
+
         self.track_tokens(
             response.usage.total_tokens, response.choices[0].message.content
         )
