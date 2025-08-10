@@ -36,6 +36,8 @@ GEMINI_API_KEY_1=
 GEMINI_API_KEY_2=
 ```
 
+Recommeded way is use three gemini api from three accounts.
+
 5. Run the playzero agent (generates random actions) against all the games.
 
 ```bash
@@ -54,7 +56,7 @@ For more information, see the [documentation](https://three.arcprize.org/docs#qu
 3. Takes actions using (1 Image LLM will current frame), goal achievent check (2 Images LLM call). this step is repeated based on 4th and 5th step.
 4. If max actions limit reached without achieving or level changed, do exploring (with random play) 
 5. If goal achieved, do game analysis
-6. Iterated till max actions. current is 2000 actions.
+6. Iterated till max actions. current is 2500 actions.
 
 **Challenges**
 - The Video LLM call will take time.
