@@ -49,16 +49,44 @@ For more information, see the [documentation](https://three.arcprize.org/docs#qu
 ### Play Zero Agent
 
 **Steps**
-- Random play (do random probability after a threshold of actions met)
-- Generate the title for the unkown game using game random play
-- Do analysis and create goal with max actions limit
-- Loop to achieve goal
-- If achieved or not achieved, do game analysis and create goal and iterate
+1. Random play (do random probability after a threshold of actions met)
+2. Do analysis and create goal with max actions limit(1 Video LLM call, 1 text LLM call)
+3. Takes actions using (1 Image LLM will current frame), goal achievent check (2 Images LLM call). this step is repeated based on 4th and 5th step.
+4. If max actions limit reached without achieving or level changed, do exploring (with random play) 
+5. If goal achieved, do game analysis
+6. Iterated till max actions. current is 2000 actions.
 
 **Challenges**
-- We need to notify the score increase
-- event chain is not working
-- iterate the 
+- The Video LLM call will take time.
+- We can switch to gemini-2.5-pro, it will give good performance. But there might rate limit errors.
+- There would be about 250K tokens needed to clear level 1. THis imght increase by 33% for each level. About 250 actions might be needed to clear level 1. this will be increaseing by 33% as well.
+- So, the token calculation for 5 levels and actions calculations
+
+Using gemini API for LLM
+
+Here’s the clean summary:
+
+| Level     | Tokens           | Actions      |
+| --------- | ---------------- | ------------ |
+| 1         | 250,000          | 250          |
+| 2         | 332,500          | 332.5        |
+| 3         | 442,225          | 442.225      |
+| 4         | 587,154.25       | 587.15425    |
+| 5         | 780,910.1525     | 780.91015    |
+| **Total** | **2,392,789.40** | **2,392.79** |
+
+
+| Level     | Tokens           | Flash Cost (\$) | Pro Cost (\$) |
+| --------- | ---------------- | --------------- | ------------- |
+| 1         | 250,000          | 0.6250          | 3.7500        |
+| 2         | 332,500          | 0.83125         | 4.9875        |
+| 3         | 442,225          | 1.1055625       | 6.633375      |
+| 4         | 587,154.25       | 1.4678856       | 8.8073138     |
+| 5         | 780,910.1525     | 1.9522754       | 11.713652     |
+| **Total** | **2,392,789.40** | **5.9820**      | **35.8918**   |
+
+
+The Gemini API cost might range from $5 to $35 dollors
 
 ## License
 

@@ -123,10 +123,13 @@ Sometimes, some actions has no effect.
 Give 10 hypothesise to explore the game and understand its mechanics, objectives, and challenges. 
 """
 
-GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (before and after), determine whether the goal has been achieved.
+GOAL_ACHIEVEMENT_CHECK_PROMPT = """Given the goal below and the two images (previous and current frame), determine whether the goal has been achieved.
 
 Goal:
 {current_goal}
+
+Summary diff between previous frame and current frame based on the previous action
+{summary_diff}
 
 Answer: Just say Yes or No."""
 
@@ -204,7 +207,7 @@ class GameContext(BaseModel):
 
 class PlayZeroAgent(ReasoningLLM):
     MODEL = "gemini-2.5-flash"
-    MAX_ACTIONS = 750
+    MAX_ACTIONS = 1500
     NEXT_ACTION_GENERATOR_MODEL = "gemini-2.5-flash"
     GOAL_ACHIEVEMENT_CHECK_MODEL = "gemini-2.5-flash"
     RANDOM_ANALYSIS_MODEL = "gemini-2.5-pro"
@@ -289,12 +292,13 @@ class PlayZeroAgent(ReasoningLLM):
         reraise=True
     )
     def generate_content_using_gemini(
-        self, model: str, contents: types.Content
+        self, model: str, contents: types.Content, config: types.GenerateContentConfigOrDict | None = None
     ) -> types.GenerateContentResponse:
         """Generate content using Gemini with retry on server error."""
         return self.gemini_client.models.generate_content(
             model=model,
-            contents=contents
+            contents=contents,
+            config=config
         )
 
     @property
@@ -504,19 +508,37 @@ class PlayZeroAgent(ReasoningLLM):
             multiple_hypothesis_text=multiple_hypothesis_text,
             # logical_analysis_actions_summary=logical_analysis_actions_summary,
         )
-        messages = [
-            {
-                "role": "user",
-                "content": prompt,
-            }
-        ]
+        # messages = [
+        #     {
+        #         "role": "user",
+        #         "content": prompt,
+        #     }
+        # ]
 
-        response = self.client.chat.completions.create(
+        # response = self.client.chat.completions.create(
+        #     model=self.TOP_HYPOTHESIS_GENERATOR_MODEL,
+        #     messages=messages,
+        #     # reasoning_effort="low",
+        # )
+        # self.track_tokens(
+        #     response.usage.total_tokens, response.choices[0].message.content
+        # )
+        # self.capture_reasoning_from_response(response)
+        # top_hypothesis = response.choices[0].message.content.strip()
+        
+        response = self.generate_content_using_gemini(
             model=self.TOP_HYPOTHESIS_GENERATOR_MODEL,
-            messages=messages,
-            # reasoning_effort="low",
+            contents=types.Content(
+                parts=[
+                    types.Part(text=prompt)
+                ]
+            ),
         )
-        top_hypothesis = response.choices[0].message.content.strip()
+        top_hypothesis = response.text.strip()
+        self.track_tokens(
+            response.usage_metadata.total_token_count, response.text
+        )
+
         try:
             top_hypothesis_extracted = self.extract_first_json_block(top_hypothesis)
             top_hypothesis_json = json.loads(top_hypothesis_extracted)
@@ -531,10 +553,6 @@ class PlayZeroAgent(ReasoningLLM):
         if top_hypothesis_json["max_actions_to_achieve"] > self.MAX_GOAL_ACTIONS:
             top_hypothesis_json["max_actions_to_achieve"] = self.MAX_GOAL_ACTIONS
 
-        self.track_tokens(
-            response.usage.total_tokens, response.choices[0].message.content
-        )
-        self.capture_reasoning_from_response(response)
 
         logger.info(f"Top hypothesis retrieved: {top_hypothesis}")
         return top_hypothesis_json
@@ -659,35 +677,54 @@ class PlayZeroAgent(ReasoningLLM):
         )
         latest_grid = latest_frame.frame[0] if latest_frame.frame else []
         latest_map_image = self.generate_grid_image_with_zone(latest_grid)
-        latest_image_b64 = base64.b64encode(latest_map_image).decode()
+        # latest_image_b64 = base64.b64encode(latest_map_image).decode()
 
-        messages = [
-            {
-                "role": "system",
-                "content": prompt,
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{latest_image_b64}",
-                            "detail": "high",
-                        },
-                    }
-                ],
-            }
-        ]
+        # messages = [
+        #     {
+        #         "role": "system",
+        #         "content": prompt,
+        #     },
+        #     {
+        #         "role": "user",
+        #         "content": [
+        #             {
+        #                 "type": "image_url",
+        #                 "image_url": {
+        #                     "url": f"data:image/png;base64,{latest_image_b64}",
+        #                     "detail": "high",
+        #                 },
+        #             }
+        #         ],
+        #     }
+        # ]
 
-        response = self.client.chat.completions.create(
+        # response = self.client.chat.completions.create(
+        #     model=self.NEXT_ACTION_GENERATOR_MODEL,
+        #     messages=messages,
+        #     # reasoning_effort="low",
+        # )
+        # response_message_text = response.choices[0].message.content.strip()
+        # self.track_tokens(
+        #     response.usage.total_tokens, response.choices[0].message.content
+        # )
+        response = self.generate_content_using_gemini(
             model=self.NEXT_ACTION_GENERATOR_MODEL,
-            messages=messages,
-            # reasoning_effort="low",
+            contents=types.Content(
+                parts=[
+                    types.Part.from_bytes(
+                        data=latest_map_image,
+                        mime_type='image/jpeg',
+                    ),
+                    types.Part(text=prompt)
+                ]
+            ),
+            config={
+                "media_resolution": "MEDIA_RESOLUTION_MEDIUM",
+            }
         )
-        response_message_text = response.choices[0].message.content.strip()
+        response_message_text = response.text.strip()
         self.track_tokens(
-            response.usage.total_tokens, response.choices[0].message.content
+            response.usage_metadata.total_token_count, response.text
         )
         
         response_message_text = self.extract_first_json_block(response_message_text).strip()
@@ -722,52 +759,82 @@ class PlayZeroAgent(ReasoningLLM):
     ) -> tuple[bool, str]:
         previous_grid = previous_frame.frame[0] if previous_frame.frame else []
         previous_map_image = self.generate_grid_image_with_zone(previous_grid)
-        previous_image_b64 = base64.b64encode(previous_map_image).decode()
+        # previous_image_b64 = base64.b64encode(previous_map_image).decode()
 
         current_grid = current_frame.frame[0] if current_frame.frame else []
         current_map_image = self.generate_grid_image_with_zone(current_grid)
-        current_image_b64 = base64.b64encode(current_map_image).decode()
+        # current_image_b64 = base64.b64encode(current_map_image).decode()
 
+        summarized_frame_diff = self.summarize_frame_diff(previous_frame, current_frame)
+        logger.info(f"Summarized frame diff : {summarized_frame_diff}")
         prompt = GOAL_ACHIEVEMENT_CHECK_PROMPT.format(
             current_goal=self.game_context.goal,
+            summary_diff=summarized_frame_diff
         )
         
-        messages = [
-            {
-                "role": "system",
-                "content": prompt,
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{previous_image_b64}",
-                            "detail": "high",
-                        },
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/png;base64,{current_image_b64}",
-                            "detail": "high",
-                        },
-                    },
-                ],
+        # messages = [
+        #     {
+        #         "role": "system",
+        #         "content": prompt,
+        #     },
+        #     {
+        #         "role": "user",
+        #         "content": [
+        #             {
+        #                 "type": "image_url",
+        #                 "image_url": {
+        #                     "url": f"data:image/png;base64,{previous_image_b64}",
+        #                     "detail": "high",
+        #                 },
+        #             },
+        #             {
+        #                 "type": "image_url",
+        #                 "image_url": {
+        #                     "url": f"data:image/png;base64,{current_image_b64}",
+        #                     "detail": "high",
+        #                 },
+        #             },
+        #         ],
+        #     }
+        # ]
+        # response = self.client.chat.completions.create(
+        #         model=self.GOAL_ACHIEVEMENT_CHECK_MODEL,
+        #         messages=messages,
+        #         # reasoning_effort="low",
+        #         temperature=0.01,
+        # )
+        # response_message_text = response.choices[0].message.content.strip()
+        # self.track_tokens(
+        #     response.usage.total_tokens, response.choices[0].message.content
+        # )
+        # self.capture_reasoning_from_response(response)
+        
+        response = self.generate_content_using_gemini(
+            model=self.GOAL_ACHIEVEMENT_CHECK_MODEL,
+            contents=types.Content(
+                parts=[
+                    types.Part(text="Previous Image"),
+                    types.Part.from_bytes(
+                        data=previous_map_image,
+                        mime_type='image/jpeg',
+                    ),
+                    types.Part(text="Current Image"),
+                    types.Part.from_bytes(
+                        data=current_map_image,
+                        mime_type='image/jpeg',
+                    ),
+                    types.Part(text=prompt)
+                ]
+            ),
+            config={
+                "media_resolution": "MEDIA_RESOLUTION_MEDIUM",
+                "temperature": 0.01,
             }
-        ]
-        response = self.client.chat.completions.create(
-                model=self.GOAL_ACHIEVEMENT_CHECK_MODEL,
-                messages=messages,
-                # reasoning_effort="low",
-                temperature=0.01,
         )
-        response_message_text = response.choices[0].message.content.strip()
+        response_message_text = response.text.strip()
         self.track_tokens(
-            response.usage.total_tokens, response.choices[0].message.content
+            response.usage_metadata.total_token_count, response.text
         )
-        self.capture_reasoning_from_response(response)
 
         logger.info(f"Response: {response_message_text}")
         response_message_text = response_message_text.lower()
@@ -779,7 +846,7 @@ class PlayZeroAgent(ReasoningLLM):
             logger.error(f"Unexpected response: {response_message_text}")
             response_flag = False
 
-        return response_flag, response.choices[0].message.content
+        return response_flag, response.text
 
     def is_frames_equal(
         self, previous_frame: FrameData, current_frame: FrameData
@@ -1140,8 +1207,10 @@ class PlayZeroAgent(ReasoningLLM):
         return key_colors_named.get(cell_value, "")
 
 
-    def summarize_frame_diff(self, previous_frame: FrameData, current_frame: FrameData) -> list[str]:
+    def summarize_frame_diff(self, previous_frame: FrameData, current_frame: FrameData) -> str:
         changes = Counter()
+        if self.is_frames_equal(previous_frame, current_frame):
+            return "No changes detected between frames."
         prev_grid = previous_frame.frame[-1]
         curr_grid = current_frame.frame[0]
 
@@ -1164,7 +1233,7 @@ class PlayZeroAgent(ReasoningLLM):
             f"- {count} {old} cells turned to {new} on {side}"
             for (old, new, side), count in changes.items()
         ]
-        return summary_lines
+        return "\n".join(summary_lines) if summary_lines else "No significant changes detected."
 
     def get_action_note(
         self,
@@ -1195,7 +1264,9 @@ class PlayZeroAgent(ReasoningLLM):
             notes = self.get_action_note(prev_frame, frame)
             
             event_chain.append(notes)
-        return "\n".join(event_chain)
+        event_chain_text = "\n".join(event_chain)
+        logger.info(f"Event chain generated: {event_chain_text}")
+        return event_chain_text
 
     def create_summary_diff_for_multiple_frames(
         self,
@@ -1203,7 +1274,9 @@ class PlayZeroAgent(ReasoningLLM):
     ) -> str:
         summary_lines = []
         for i in range(len(frames) - 1):
-            diff = "\n".join(self.summarize_frame_diff(frames[i], frames[i + 1]))
+            diff = self.summarize_frame_diff(frames[i], frames[i + 1])
             notes = self.get_action_note(frames[i], frames[i + 1])
             summary_lines.extend(f"When action {notes} on frame {i}:\n the below changes occurred in frame {i + 1}:\n" + diff)
-        return "\n".join(summary_lines)
+        summary_lines_text = "\n".join(summary_lines)
+        logger.info(f"Summary diff generated: {summary_lines_text}")
+        return summary_lines_text
