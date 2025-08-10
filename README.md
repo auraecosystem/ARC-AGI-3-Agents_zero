@@ -23,91 +23,70 @@ cp .env-example .env
 export ARC_API_KEY="your_api_key_here"
 ```
 
-4. Run the random agent (generates random actions) against the ls20 game.
+4. Get a Gemini API key from [Google AI studio](https://aistudio.google.com/apikey) and set it as an environemnt varaible in you .env file
+
+```
+GEMINI_API_KEY=your_gemini_api_key_here
+```
+
+Iy you face rate limit error, you can two more api key from multiple accounts
+
+```
+GEMINI_API_KEY_1=
+GEMINI_API_KEY_2=
+```
+
+5. Run the playzero agent (generates random actions) against all the games.
 
 ```bash
-uv run main.py --agent=random --game=ls20
+uv run main.py --agent=playzeroagent
 ```
 
 For more information, see the [documentation](https://three.arcprize.org/docs#quick-start) or the [tutorial video](https://youtu.be/xEVg9dcJMkw).
 
-## Observability (Optional)
+## Architecture
 
-[AgentOps](https://agentops.ai/) is an observability platform designed for providing real-time monitoring, debugging, and analytics for your agent's behavior, helping you understand how your agents perform and make decisions.
+### Play Zero Agent
 
-### Installation
+**Steps**
+1. Random play (do random probability after a threshold of actions met)
+2. Do analysis and create goal with max actions limit(1 Video LLM call, 1 text LLM call)
+3. Takes actions using (1 Image LLM will current frame), goal achievent check (2 Images LLM call). this step is repeated based on 4th and 5th step.
+4. If max actions limit reached without achieving or level changed, do exploring (with random play) 
+5. If goal achieved, do game analysis
+6. Iterated till max actions. current is 2000 actions.
 
-AgentOps is already included as an optional dependency in this project. To install it:
+**Challenges**
+- The Video LLM call will take time.
+- We can switch to gemini-2.5-pro, it will give good performance. But there might rate limit errors.
+- There would be about 250K tokens needed to clear level 1. THis imght increase by 33% for each level. About 250 actions might be needed to clear level 1. this will be increaseing by 33% as well.
+- So, the token calculation for 5 levels and actions calculations
 
-```bash
-uv sync --agentops
-```
+Using gemini API for LLM
 
-Or if you're installing manually:
+Here’s the clean summary:
 
-```bash
-pip install -U agentops
-```
+| Level     | Tokens           | Actions      |
+| --------- | ---------------- | ------------ |
+| 1         | 250,000          | 250          |
+| 2         | 332,500          | 332.5        |
+| 3         | 442,225          | 442.225      |
+| 4         | 587,154.25       | 587.15425    |
+| 5         | 780,910.1525     | 780.91015    |
+| **Total** | **2,392,789.40** | **2,392.79** |
 
-### Getting Your API Key
 
-1. Visit [app.agentops.ai](https://app.agentops.ai) and create an account if you haven't already
-2. Once logged in, click on "New Project" to create a project for your ARC-AGI-3 agents
-3. Give your project a meaningful name (e.g., "ARC-AGI-3-Agents")
-4. After creating the project, you'll see your project dashboard
-5. Click on the "API Keys" tab on the left side & copy the API key
+| Level     | Tokens           | Flash Cost (\$) | Pro Cost (\$) |
+| --------- | ---------------- | --------------- | ------------- |
+| 1         | 250,000          | 0.6250          | 3.7500        |
+| 2         | 332,500          | 0.83125         | 4.9875        |
+| 3         | 442,225          | 1.1055625       | 6.633375      |
+| 4         | 587,154.25       | 1.4678856       | 8.8073138     |
+| 5         | 780,910.1525     | 1.9522754       | 11.713652     |
+| **Total** | **2,392,789.40** | **5.9820**      | **35.8918**   |
 
-### Configuration
 
-1. Add your AgentOps API key to your `.env` file:
-
-```bash
-AGENTOPS_API_KEY=aos_your_api_key_here
-```
-
-2. The AgentOps integration is automatically initialized when you run an agent. The tracing decorator `@trace_agent_session` is already applied to agent execution methods in the codebase.
-
-3. When you run your agent, you'll see AgentOps initialization messages and session URLs in the console:
-
-```bash
-🖇 AgentOps: Session Replay for your-agent-name: https://app.agentops.ai/sessions?trace_id=xxxxx
-```
-
-4. Click on the session URL to view real-time traces of your agent's execution. You can also view the traces in the AgentOps dashboard by locating the trace ID in the "Traces" tab.
-
-### Using AgentOps with Custom Agents
-
-If you're creating a custom agent, the tracing is automatically applied through the `@trace_agent_session` decorator on the `main()` method. No additional code changes are needed.
-
-## Contest Submission
-
-To submit your agent for the ARC-AGI-3 competition, please use this form: https://forms.gle/wMLZrEFGDh33DhzV9.
-
-## Contributing
-
-We welcome contributions! To contribute to ARC-AGI-3-Agents, please follow these steps:
-
-1.  Fork the repository and create a new branch for your feature or bugfix.
-2.  Make your changes and ensure that all tests pass, you are welcome to add more tests for your specific fixes.
-3.  This project uses `ruff` for linting and formatting. Please set up the pre-commit hooks to ensure your contributions match the project's style.
-    ```bash
-    pip install pre-commit
-    pre-commit install
-    ```
-4.  Write clear commit messages describing your changes.
-5.  Open a pull request with a description of your changes and the motivation behind them.
-
-If you have questions or need help, feel free to open an issue.
-
-## Tests
-
-To run the tests, you will need to have `pytest` installed. Run the tests like this:
-
-```bash
-pytest
-```
-
-For more information on tests, please see the [tests documentation](https://three.arcprize.org/docs#testing).
+The Gemini API cost might range from $5 to $35 dollors
 
 ## License
 

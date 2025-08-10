@@ -1,0 +1,32 @@
+[
+    {
+        "game_id": "vc33",
+        "game_name": "VALVECHECK",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_vc33-58ec4396715d.mp4",
+        "scorecard_file_path": "recordings/vc33-58ec4396715d.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.16361512-adee-4d14-bef6-53d11cadf1a7.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": 43,
+        "expected_goal": "Click red button and blue button and notice the effect"
+    },
+    {
+        "game_id": "ft09",
+        "game_name": "FLIP TILES",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_ft09-f340c8e5138e.mp4",
+        "scorecard_file_path": "recordings/ft09-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.3c04f85d-c35d-4243-8ccc-9c86a9f20682.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": -1,
+        "expected_goal": "Flip the blue and red tiles"
+    },
+    {
+        "game_id": "ls20",
+        "game_name": "LOCKSMITH",
+        "level": 1,
+        "video_path": "data/eval/videos/game_analysis_ls20-f340c8e5138e.mp4",
+        "scorecard_file_path": "recordings/ls20-f340c8e5138e.playzeroagent.gemini-2.5-flash.with-observe.gemini-2.5-flash.6079b1d7-1363-4630-8481-400bab8eaaec.recording.jsonl",
+        "frame_start": 0,
+        "frame_end": -1,
+        "expected_goal": "You need to move the \"Orange-Capped Blue Block (6x7)\" to the target \"8x7Grid_BlackHead_BlueEye_WhiteSnout\""
+    }
+]
