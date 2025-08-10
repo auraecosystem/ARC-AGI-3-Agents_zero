@@ -51,6 +51,31 @@ Also,
 uv run main.py --agent=playzeroagent
 ```
 
+**Note: for linux users**
+
+We are using opencv, this might lead this error when you run
+
+```bash
+    native_module = importlib.import_module("cv2")
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/codespace/.python/current/lib/python3.12/importlib/__init__.py", line 90, in import_module
+    return _bootstrap._gcd_import(name[level:], package, level)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+ImportError: libGL.so.1: cannot open shared object file: No such file or directory
+```
+
+OpenCV (cv2) is trying to use OpenGL for image display or processing, but if the shared library libGL.so.1 isn’t installed in your environment.
+This is common in minimal Docker/virtual environments (like Codespaces).
+
+How to fix it:
+You just need to install the missing system dependency.
+
+```bash
+sudo apt-get update
+sudo apt-get install -y libgl1 libglib2.0-0
+```
+
+
 For more information, see the [documentation](https://three.arcprize.org/docs#quick-start) or the [tutorial video](https://youtu.be/xEVg9dcJMkw).
 
 ## Architecture
