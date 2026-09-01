@@ -25,13 +25,13 @@ export ARC_API_KEY="your_api_key_here"
 
 4. Get a Gemini API key from [Google AI studio](https://aistudio.google.com/apikey) and set it as an environemnt varaible in you .env file
 
-```
+```bashrc
 GEMINI_API_KEY=your_gemini_api_key_here
 ```
 
 Iy you face rate limit error, you can 5 more api key from multiple accounts
 
-```
+```env
 GEMINI_API_KEY_1=
 GEMINI_API_KEY_2=
 GEMINI_API_KEY_3=
@@ -70,7 +70,7 @@ This is common in minimal Docker/virtual environments (like Codespaces).
 How to fix it:
 You just need to install the missing system dependency.
 
-```bash
+```shell
 sudo apt-get update
 sudo apt-get install -y libgl1 libglib2.0-0
 ```
