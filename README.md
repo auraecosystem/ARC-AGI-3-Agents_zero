@@ -26,7 +26,7 @@ export ARC_API_KEY="your_api_key_here"
 4. Get a Gemini API key from [Google AI studio](https://aistudio.google.com/apikey) and set it as an environemnt varaible in you .env file
 
 ```bashrc
-GEMINI_API_KEY=your_gemini_api_key_here
+GEMINI_API_KEY=
 ```
 
 Iy you face rate limit error, you can 5 more api key from multiple accounts
